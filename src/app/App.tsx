@@ -1,9 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router'
+import { ExamScreen } from '../screens/exams/ExamScreen'
+import { NewExamScreen } from '../screens/exams/NewExamScreen'
 import { FirstRunScreen } from '../screens/FirstRunScreen'
 import { HomeScreen } from '../screens/HomeScreen'
+import { PeriodScreen } from '../screens/PeriodScreen'
 import { SettingsScreen } from '../screens/settings/SettingsScreen'
+import { SubjectsScreen } from '../screens/subjects/SubjectsScreen'
 import { Layout } from './Layout'
 import { requestPersistentStorage } from './persistentStorage'
 import { ServicesContext, useServices, type AppServices } from './services'
@@ -36,7 +40,11 @@ function Screens() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomeScreen student={student} />} />
-        <Route path="ajustes" element={<SettingsScreen student={student} />} />
+        <Route path="materias" element={<SubjectsScreen />} />
+        <Route path="examenes/nuevo" element={<NewExamScreen />} />
+        <Route path="examenes/:examId" element={<ExamScreen />} />
+        <Route path="periodos/:periodId" element={<PeriodScreen />} />
+        <Route path="ajustes"element={<SettingsScreen student={student} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

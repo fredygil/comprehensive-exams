@@ -36,14 +36,19 @@ src/
     gateway.ts           operations (checkKey so far) + shared `send`
     errors.ts            GatewayError kinds: NoKey, InvalidKey, NoCredit, Offline, RateLimited, Unavailable, BadResponse
   settings/models.ts     AI jobs and their default models
-  components/            shared UI (Section, GradeLevelSelect, NeedsKey)
-  screens/               one folder/file per screen
+  exams/calendar.ts      school year of a day, days until an Exam Date (local time)
+  components/            shared UI (Section, NeedsKey, ExamList, DeleteWithConfirmation + confirmations, ...)
+  screens/               one folder/file per screen (home, Period, exams/, subjects/, settings/)
 tests/
   harness/               the app-level test harness (below)
   *.test.tsx             app-level tests, one file per feature
 ```
 
 New modules from spec #1 (Page Splitter, Reading Queue, Quiz Maker, ...) get their own folder under `src/`. Screens reach them through `useServices()`; if a module needs the outside world, add it to `AppServices` in `src/app/services.tsx` so tests can swap it.
+
+### Data under an Exam
+
+Deleting an Exam, or a Subject with its Exams, removes everything stored under it after a confirmation that names it. When a ticket adds data under an Exam (Material, Summary, Explainers, quizzes), it adds a kind to `ExamPartKind` and an entry to `examParts` in `src/store/store.ts` (tables, count, delete), plus its line in `strings.deletion.examParts`. Both confirmations and both cascades pick it up from there.
 
 ## Writing an app-level test
 
@@ -73,7 +78,7 @@ it('shows the spend limit', async () => {
   - `user`: a user-event instance for taps and typing;
   - `reopen()`: closes the app (unmount + close the Store) and launches it again on the same database at the start URL. Use it for anything that must survive a restart;
   - `storage`: the fake `navigator.storage` (`persist` / `persisted` are `vi.fn`s).
-  - `options.student` / `options.openRouterKey` are preconditions written through the Store's public API before launch. Use them to skip setup that isn't what the test is about; drive the behaviour under test through the screens. Add more options here as later tickets need them (always via Store methods, never raw tables).
+  - `options.student` / `options.openRouterKey` / `options.subjects` / `options.exams` are preconditions written through the Store's public API before launch. Use them to skip setup that isn't what the test is about; drive the behaviour under test through the screens. Add more options here as later tickets need them (always via Store methods, never raw tables).
 - **MSW** (`tests/harness/openRouter.ts`): every test starts with `defaultHandlers` (a working key, no limit). Override per test with `server.use(openRouter.key.invalid())`, `.status(402)`, `.offline()` and so on. Unhandled requests fail the test, so add a scripted response to `openRouter` for each new endpoint (chat completions, etc.). `openRouterRequests` lists the requests sent in the current test, for the spec's one allowed request check (headers, Language and Grade Level in the prompt).
 - **Fake clock** (`tests/harness/clock.ts`): `setClock('2026-10-18T09:00')` freezes `Date` only; timers stay real, so `findBy*`/`waitFor`, user-event, MSW and Dexie work unchanged. Call it again to move time; it is reset after each test.
 - **Queries**: prefer roles and labels with the literal Spanish text. Each Settings card is a `region` named by its heading (`<Section title>`), so `within(screen.getByRole('region', { name: 'Modelos' }))` scopes a query to it.

@@ -155,6 +155,70 @@ button:disabled {
   margin: 0.25rem 0;
 }
 
+.screen.narrow-form {
+  max-width: 640px;
+}
+
+/* A link that looks like the primary button (e.g. "Nuevo examen"). */
+a.button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  background: var(--brand);
+  color: white;
+  text-decoration: none;
+}
+
+button.danger {
+  background: var(--error);
+}
+
+button.danger-outline {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.confirm {
+  background: var(--card);
+  border: 2px solid var(--error);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+}
+
+.confirm h2 {
+  margin-top: 0;
+}
+
+.exam-list,
+.period-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.exam-list a,
+.period-list a {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  min-height: 48px;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.exam-subject {
+  font-weight: 600;
+}
+
 @media (orientation: landscape) and (min-width: 900px) {
   .settings-grid {
     display: grid;
