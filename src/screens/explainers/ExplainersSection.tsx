@@ -7,7 +7,6 @@ import { Section } from '../../components/Section'
 import { GatewayError } from '../../gateway/errors'
 import type { Exam } from '../../store/store'
 import { strings } from '../../strings'
-import { examText } from '../../studyAids/examText'
 import { generateExplainer, suggestTopics } from '../../studyAids/explainers'
 
 /** What the section is waiting for from the model, if anything. */
@@ -18,7 +17,7 @@ export function ExplainersSection({ exam }: { exam: Exam }) {
   const services = useServices()
   const navigate = useNavigate()
   const explainers = useLiveQuery(() => services.store.examExplainers(exam.id), [services.store, exam.id])
-  const scope = useLiveQuery(() => examText(services.store, exam.id), [services.store, exam.id])
+  const scope = useLiveQuery(() => services.store.examText(exam.id), [services.store, exam.id])
   const hasKey = useHasKey()
   const [topics, setTopics] = useState<string[] | null>(null)
   const [topic, setTopic] = useState('')

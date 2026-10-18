@@ -5,7 +5,6 @@ import { NeedsKeyNotice, useHasKey } from '../../components/NeedsKey'
 import { GatewayError } from '../../gateway/errors'
 import type { Exam, SummaryState } from '../../store/store'
 import { strings } from '../../strings'
-import { examText } from '../../studyAids/examText'
 import { generateSummary } from '../../studyAids/summary'
 
 /**
@@ -20,7 +19,7 @@ export function SummaryActions(props: {
 }) {
   const { exam, state } = props
   const services = useServices()
-  const scope = useLiveQuery(() => examText(services.store, exam.id), [services.store, exam.id])
+  const scope = useLiveQuery(() => services.store.examText(exam.id), [services.store, exam.id])
   const hasKey = useHasKey()
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)

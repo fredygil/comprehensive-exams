@@ -7,7 +7,7 @@ import type { StructuredSchema } from '../gateway/gateway'
 import { explainerPrompt } from '../prompts/explainer'
 import { suggestTopicsPrompt } from '../prompts/suggestTopics'
 import type { Exam } from '../store/store'
-import { examText, promptContext, type StudyAidServices } from './examText'
+import { promptContext, type StudyAidServices } from './examText'
 
 const topicsSchema: StructuredSchema<{ topics: string[] }> = {
   name: 'topics',
@@ -30,7 +30,7 @@ const topicsSchema: StructuredSchema<{ topics: string[] }> = {
 /** Topics from the Exam's Recognized Text worth an Explainer, in the Subject's Language. */
 export async function suggestTopics({ store, gateway }: StudyAidServices, exam: Exam): Promise<string[]> {
   const context = await promptContext(store, exam)
-  const { materials } = await examText(store, exam.id)
+  const { materials } = await store.examText(exam.id)
   // Topic suggestions have no job of their own; they use the summary model.
   const { topics } = await gateway.generateStructured(
     suggestTopicsPrompt(context, materials),

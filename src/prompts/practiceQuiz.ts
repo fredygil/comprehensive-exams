@@ -1,7 +1,4 @@
-import { MARKDOWN_WITH_MATH, languageName, studentLine, type PromptContext } from './context'
-
-/** One Material's Recognized Text, labelled with the id the model cites as `sourceMaterialId`. */
-export type QuizSourceMaterial = { id: string; pages: string[] }
+import { MARKDOWN_WITH_MATH, languageName, studentLine, withReadPages, type PromptContext, type QuotedMaterial } from './context'
 
 /**
  * The Practice Quiz prompt: `count` four-option Questions drawn only from the
@@ -15,7 +12,7 @@ export function practiceQuizPrompt(
     count,
     materials,
     earlierPrompts = [],
-  }: { count: number; materials: QuizSourceMaterial[]; earlierPrompts?: string[] },
+  }: { count: number; materials: QuotedMaterial[]; earlierPrompts?: string[] },
 ): string {
   const language = languageName(context.language)
   return [
@@ -31,8 +28,10 @@ export function practiceQuizPrompt(
     'Keep each field short: no headings.',
     '',
     'The notes, one material at a time:',
-    ...materials.map(
-      (material) => `<material id="${material.id}">\n${material.pages.join('\n\n')}\n</material>`,
+    // Labelled with the id the model cites as `sourceMaterialId`.
+    ...withReadPages(materials).map(
+      ({ material, pages }) =>
+        `<material id="${material.id}">\n${pages.map((page) => page.text).join('\n\n')}\n</material>`,
     ),
     ...(earlierPrompts.length
       ? [

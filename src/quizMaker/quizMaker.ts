@@ -9,6 +9,7 @@
 // is a repeat, and its quiz is flagged mayRepeat.
 import { GatewayError } from '../gateway/errors'
 import type { ModelGateway, StructuredSchema } from '../gateway/gateway'
+import { withReadPages } from '../prompts/context'
 import { practiceQuizPrompt } from '../prompts/practiceQuiz'
 import type { Material, QuestionDraft, Store } from '../store/store'
 
@@ -97,9 +98,7 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
       const exam = await store.getExam(examId)
       const student = await store.getStudent()
       if (!exam || !student) throw new Error('createPracticeQuiz: no such Exam, or no Student')
-      const sources = (await store.examRecognizedText(examId)).filter(
-        ({ material }) => !materialIds || materialIds.includes(material.id),
-      )
+      const sources = withReadPages((await store.examText(examId, materialIds)).materials)
       const earlierPrompts = await store.examQuestionPrompts(examId)
       const materials = new Map<string, Material>(
         sources.map(({ material }) => [String(material.id), material]),
@@ -109,7 +108,7 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
         { language: exam.subject.language, gradeLevel: student.gradeLevel },
         {
           count,
-          materials: sources.map(({ material, pages }) => ({ id: String(material.id), pages })),
+          materials: sources,
           earlierPrompts: unique(earlierPrompts),
         },
       )

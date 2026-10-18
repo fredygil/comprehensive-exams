@@ -127,9 +127,17 @@ export type Page = {
 /** How far reading a Material has got: Pages read and failed, out of all its Pages. */
 export type ReadingProgress = { read: number; failed: number; total: number }
 
-export function readingProgress(pages: Pick<Page, 'status'>[]): ReadingProgress {
+/**
+ * Has the Page been read, so its Recognized Text goes into quizzes and Study
+ * Aids? The one rule for a "read Page" everywhere.
+ */
+export function isRead(page: Pick<Page, 'status' | 'recognizedText'>): page is Page & { recognizedText: string } {
+  return page.status === 'read' && page.recognizedText !== null
+}
+
+export function readingProgress(pages: Pick<Page, 'status' | 'recognizedText'>[]): ReadingProgress {
   return {
-    read: pages.filter((page) => page.status === 'read').length,
+    read: pages.filter(isRead).length,
     failed: pages.filter((page) => page.status === 'failed').length,
     total: pages.length,
   }
@@ -228,8 +236,36 @@ export type MistakeChange = { questionId: number; isMistake: boolean }
  */
 export type QuizWithQuestions = { quiz: PracticeQuiz; questions: Question[] }
 
-/** A Material's Recognized Text: its read Pages, in order. */
-export type MaterialText = { material: Material; pages: string[] }
+/** A read Page's Recognized Text. */
+export type PageText = { pageId: number; text: string }
+
+/**
+ * A Material's Recognized Text, as quizzes and Study Aids use it: its read
+ * Pages in order, and how many of its Pages that leaves out (not read yet, or failed).
+ */
+export type MaterialText = { material: Material; pages: PageText[]; notIncluded: number }
+
+/** The Recognized Text of an Exam's Materials (or some of them), with totals. */
+export type ExamText = {
+  /** Every Material, in the order added, including those with no read Page yet. */
+  materials: MaterialText[]
+  /** The read Pages, in order: what a Study Aid made now would include. */
+  pageIds: number[]
+  readPages: number
+  /** Pages left out because they are not read (yet). */
+  notIncluded: number
+}
+
+/** The totals of these Materials' Recognized Text, e.g. of the ones chosen for a quiz. */
+export function examTextOf(materials: MaterialText[]): ExamText {
+  const pageIds = materials.flatMap(({ pages }) => pages.map((page) => page.pageId))
+  return {
+    materials,
+    pageIds,
+    readPages: pageIds.length,
+    notIncluded: materials.reduce((sum, material) => sum + material.notIncluded, 0),
+  }
+}
 
 /**
  * A study guide of the whole Exam, organized by topic; an Exam has at most
@@ -485,6 +521,18 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     return (await withSubjectAndPeriod(rows)).sort(soonestFirst)
   }
 
+  /** An Exam's Materials, in the order they were added. */
+  async function examMaterials(examId: number): Promise<Material[]> {
+    const materials = await db.materials.where('examId').equals(examId).toArray()
+    return materials.sort((a, b) => a.addedAt - b.addedAt || a.id - b.id)
+  }
+
+  /** A Material's Pages, in order. */
+  async function materialPages(materialId: number): Promise<Page[]> {
+    const pages = await db.pages.where('materialId').equals(materialId).toArray()
+    return pages.sort((a, b) => a.index - b.index)
+  }
+
   /** The quiz and its Questions, or null if there is none with that id (e.g. its Exam was deleted). */
   async function getQuiz(quizId: number): Promise<QuizWithQuestions | null> {
     const quiz = await db.quizzes.get(quizId)
@@ -710,11 +758,7 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       })
     },
 
-    /** An Exam's Materials, in the order they were added. */
-    async examMaterials(examId: number): Promise<Material[]> {
-      const materials = await db.materials.where('examId').equals(examId).toArray()
-      return materials.sort((a, b) => a.addedAt - b.addedAt || a.id - b.id)
-    },
+    examMaterials,
 
     /** The Material, or null if there is none with that id (e.g. it was deleted). */
     async getMaterial(id: number): Promise<Material | null> {
@@ -746,11 +790,7 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       })
     },
 
-    /** A Material's Pages, in order. */
-    async materialPages(materialId: number): Promise<Page[]> {
-      const pages = await db.pages.where('materialId').equals(materialId).toArray()
-      return pages.sort((a, b) => a.index - b.index)
-    },
+    materialPages,
 
     getPage,
 
@@ -848,20 +888,24 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       await db.explainers.delete(id)
     },
 
-    /** The Recognized Text of an Exam's read Pages, per Material in the order added; Materials with none are left out. */
-    async examRecognizedText(examId: number): Promise<MaterialText[]> {
-      const materials = await db.materials.where('examId').equals(examId).toArray()
-      materials.sort((a, b) => a.addedAt - b.addedAt || a.id - b.id)
+    /**
+     * The Recognized Text of the Exam's read Pages, Material by Material in
+     * the order added (only `materialIds`, if given): what quizzes and Study
+     * Aids are made from, and how many Pages they would leave out.
+     */
+    async examText(examId: number, materialIds?: number[]): Promise<ExamText> {
       const texts: MaterialText[] = []
-      for (const material of materials) {
-        const pages = await db.pages.where('materialId').equals(material.id).toArray()
-        const read = pages
-          .filter((page) => page.status === 'read' && page.recognizedText)
-          .sort((a, b) => a.index - b.index)
-          .map((page) => page.recognizedText!)
-        if (read.length) texts.push({ material, pages: read })
+      for (const material of await examMaterials(examId)) {
+        if (materialIds && !materialIds.includes(material.id)) continue
+        const pages = await materialPages(material.id)
+        const read = pages.filter(isRead)
+        texts.push({
+          material,
+          pages: read.map((page) => ({ pageId: page.id, text: page.recognizedText })),
+          notIncluded: pages.length - read.length,
+        })
       }
-      return texts
+      return examTextOf(texts)
     },
 
     /** The prompts of every Question asked so far on the Exam, oldest first (new quizzes avoid them). */

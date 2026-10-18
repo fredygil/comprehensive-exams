@@ -5,25 +5,12 @@ import { useServices } from '../../app/services'
 import { NeedsKeyNotice, useHasKey } from '../../components/NeedsKey'
 import { Section } from '../../components/Section'
 import { GatewayError, type GatewayErrorKind } from '../../gateway/errors'
-import type { Exam, Material, Store } from '../../store/store'
+import { examTextOf, type Exam } from '../../store/store'
 import { strings } from '../../strings'
 import { InProgressQuizzes } from './InProgressQuizzes'
 
 const COUNTS = Array.from({ length: 20 }, (_, i) => i + 1)
 const DEFAULT_COUNT = 10
-
-/** A Material the quiz can cover, with how many of its Pages are read and how many are not (unread or failed). */
-type MaterialScope = { material: Material; readPages: number; notIncluded: number }
-
-async function materialScopes(store: Store, examId: number): Promise<MaterialScope[]> {
-  const scopes: MaterialScope[] = []
-  for (const material of await store.examMaterials(examId)) {
-    const pages = await store.materialPages(material.id)
-    const readPages = pages.filter((page) => page.status === 'read').length
-    scopes.push({ material, readPages, notIncluded: pages.length - readPages })
-  }
-  return scopes
-}
 
 /**
  * "Practicar" on the Exam screen: how many Questions and, when the Exam has
@@ -34,7 +21,8 @@ export function QuizSection({ exam }: { exam: Exam }) {
   const { store, quizMaker } = useServices()
   const navigate = useNavigate()
   const hasKey = useHasKey()
-  const materials = useLiveQuery(() => materialScopes(store, exam.id), [store, exam.id])
+  const examText = useLiveQuery(() => store.examText(exam.id), [store, exam.id])
+  const materials = examText?.materials
   const [count, setCount] = useState(DEFAULT_COUNT)
   // Left-out Materials rather than chosen ones, so Material added meanwhile is included.
   const [excluded, setExcluded] = useState<ReadonlySet<number>>(new Set())
@@ -42,11 +30,11 @@ export function QuizSection({ exam }: { exam: Exam }) {
   const [failure, setFailure] = useState<GatewayErrorKind | null>(null)
   const text = strings.quiz
 
-  const hasReadPages = materials?.some((scope) => scope.readPages > 0)
-  const chosen = materials?.filter(({ material }) => !excluded.has(material.id)) ?? []
-  const noneChosen = chosen.length === 0 && excluded.size > 0
-  const chosenReadPages = chosen.reduce((sum, scope) => sum + scope.readPages, 0)
-  const notIncluded = chosen.reduce((sum, scope) => sum + scope.notIncluded, 0)
+  const hasReadPages = examText && examText.readPages > 0
+  const chosen = examTextOf(materials?.filter(({ material }) => !excluded.has(material.id)) ?? [])
+  const noneChosen = chosen.materials.length === 0 && excluded.size > 0
+  const chosenReadPages = chosen.readPages
+  const notIncluded = chosen.notIncluded
 
   function toggle(materialId: number) {
     const next = new Set(excluded)
@@ -59,7 +47,7 @@ export function QuizSection({ exam }: { exam: Exam }) {
     setCreating(true)
     setFailure(null)
     try {
-      const materialIds = excluded.size ? chosen.map(({ material }) => material.id) : undefined
+      const materialIds = excluded.size ? chosen.materials.map(({ material }) => material.id) : undefined
       const quizId = await quizMaker.createPracticeQuiz(exam.id, { count, materialIds })
       if (quizId === null) setCreating(false)
       else navigate(`/examenes/${exam.id}/quiz/${quizId}`)

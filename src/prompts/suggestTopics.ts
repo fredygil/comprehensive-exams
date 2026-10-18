@@ -1,7 +1,7 @@
-import { languageName, studentLine, type MaterialText, type PromptContext } from './context'
+import { languageName, materialSections, studentLine, type PromptContext, type QuotedMaterial } from './context'
 
 /** Asks for topics in the Student's notes worth a deeper, web-sourced Explainer. */
-export function suggestTopicsPrompt(context: PromptContext, materials: MaterialText[]): string {
+export function suggestTopicsPrompt(context: PromptContext, materials: QuotedMaterial[]): string {
   return [
     `Below are the notebook notes of ${studentLine(context)}, for one exam.`,
     'Suggest 3 to 6 topics from these notes that are worth exploring further with a deeper explanation from web sources:',
@@ -10,6 +10,6 @@ export function suggestTopicsPrompt(context: PromptContext, materials: MaterialT
     `Write each topic as a short title (a few words) in ${languageName(context.language)}.`,
     'Reply with JSON: {"topics": ["...", "..."]}.',
     '',
-    ...materials.flatMap((material) => [`## Material: ${material.name}`, '', ...material.pages, '']),
+    ...materialSections(materials),
   ].join('\n')
 }

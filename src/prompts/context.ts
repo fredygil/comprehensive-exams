@@ -4,7 +4,7 @@
 // (a PromptContext). Each prompt lives in its own file next to this one
 // (readPage.ts, ...) and builds on the shared pieces below. Prompts are in
 // English, which models follow best; they name the Language to write in.
-import type { GradeLevel, Language } from '../store/store'
+import type { GradeLevel, Language, Material, PageText } from '../store/store'
 
 export type PromptContext = {
   /** The Subject's Language. */
@@ -13,8 +13,26 @@ export type PromptContext = {
   gradeLevel: GradeLevel
 }
 
-/** One Material's Recognized Text, Page by Page (read Pages only), as prompts quote it. */
-export type MaterialText = { name: string; pages: string[] }
+/**
+ * What a prompt quotes of one Material: its read Pages' Recognized Text, in
+ * order. The Store's MaterialText (store.examText) is one.
+ */
+export type QuotedMaterial = { material: Pick<Material, 'id' | 'name'>; pages: Pick<PageText, 'text'>[] }
+
+/** The Materials worth quoting: those with at least one read Page. */
+export function withReadPages<T extends QuotedMaterial>(materials: T[]): T[] {
+  return materials.filter((material) => material.pages.length > 0)
+}
+
+/** Each Material's Recognized Text under a "## Material: <name>" heading, Page after Page. */
+export function materialSections(materials: QuotedMaterial[]): string[] {
+  return withReadPages(materials).flatMap(({ material, pages }) => [
+    `## Material: ${material.name}`,
+    '',
+    ...pages.map((page) => page.text),
+    '',
+  ])
+}
 
 const LANGUAGE_NAMES: Record<Language, string> = { es: 'Spanish', en: 'English' }
 

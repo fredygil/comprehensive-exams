@@ -18,7 +18,7 @@ export type Sample = { name: string; language: Language; original: PageOriginal 
 const QUESTION_COUNT = 5
 
 /** The id the sample's Material gets in the quiz prompt (a fresh tablet's first Material). */
-const MATERIAL_ID = '1'
+const MATERIAL_ID = 1
 
 export type LiveCheckOptions = {
   key: string
@@ -90,7 +90,7 @@ export async function runLiveCheck(options: LiveCheckOptions): Promise<{ ok: boo
       print(`== Practice Quiz in ${languageName(sample.language)} (${QUESTION_COUNT} Questions) from ${sample.name} ==`)
       const prompt = practiceQuizPrompt(context, {
         count: QUESTION_COUNT,
-        materials: [{ id: MATERIAL_ID, pages: [text] }],
+        materials: [{ material: { id: MATERIAL_ID, name: sample.name }, pages: [{ text }] }],
       })
       const questions = await call(() => gateway.generateStructured(prompt, QUIZ_SCHEMA, 'practiceQuiz'))
       if (questions === undefined) continue

@@ -1,7 +1,7 @@
-import { MARKDOWN_WITH_MATH, languageName, studentLine, type MaterialText, type PromptContext } from './context'
+import { MARKDOWN_WITH_MATH, languageName, materialSections, studentLine, type PromptContext, type QuotedMaterial } from './context'
 
 /** Asks for a study guide of the whole Exam, organized by topic, from the Student's notes only. */
-export function summaryPrompt(context: PromptContext, subject: string, materials: MaterialText[]): string {
+export function summaryPrompt(context: PromptContext, subject: string, materials: QuotedMaterial[]): string {
   return [
     `Below are all the notebook notes of ${studentLine(context)}, for the comprehensive exam of ${subject}.`,
     'Write a study guide of everything in these notes, organized by topic, so the student can study one topic at a time.',
@@ -12,6 +12,6 @@ export function summaryPrompt(context: PromptContext, subject: string, materials
     'Do not start a topic with its own heading; its title goes in "title".',
     'Reply with JSON: {"topics": [{"title": "...", "content": "Markdown"}]}, topics in the order they appear in the notes.',
     '',
-    ...materials.flatMap((material) => [`## Material: ${material.name}`, '', ...material.pages, '']),
+    ...materialSections(materials),
   ].join('\n')
 }
