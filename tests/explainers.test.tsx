@@ -1,5 +1,6 @@
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { photo } from './harness/files'
 import { OPENROUTER, openRouter, openRouterRequests, server, urlCitation } from './harness/openRouter'
 import { renderApp } from './harness/renderApp'
 
@@ -49,6 +50,12 @@ async function openExam(app: App, subject = 'Matemáticas') {
 
 async function explainers() {
   return within(await screen.findByRole('region', { name: 'Explicaciones' }))
+}
+
+/** The topics of the Explainers listed on the Exam screen, once loaded. */
+async function listedExplainers() {
+  const list = within(await (await explainers()).findByRole('list', { name: 'Tus explicaciones' }))
+  return list.getAllByRole('listitem').map((item) => item.textContent)
 }
 
 /** The chat completion requests sent so far, as JSON bodies. */
@@ -144,6 +151,97 @@ describe('generating an Explainer', () => {
   })
 })
 
+describe('when generating fails', () => {
+  it('shows why in Spanish and keeps the topic to try again', async () => {
+    server.use(openRouter.webSearch.status(402, { limit_source: 'openrouter_credits' }))
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
+    await openExam(app)
+
+    const section = await explainers()
+    await app.user.type(section.getByLabelText('Tema'), 'Fracciones equivalentes')
+    await app.user.click(section.getByRole('button', { name: 'Crear explicación' }))
+
+    expect(await section.findByRole('alert')).toHaveTextContent(
+      'Se acabó el saldo de la clave de OpenRouter. Pídele a un adulto que lo recargue.',
+    )
+    expect(section.getByLabelText('Tema')).toHaveValue('Fracciones equivalentes')
+
+    server.use(openRouter.webSearch.answer(equivalentFractions, [wikipedia]))
+    await app.user.click(section.getByRole('button', { name: 'Crear explicación' }))
+    expect(await screen.findByRole('heading', { name: 'Fracciones equivalentes', level: 1 })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['is not JSON', openRouter.structured.raw('Fracciones, sumas')],
+    ['has no topics', openRouter.structured.json({ topics: [] })],
+  ])('says the answer was unusable when the topic list %s', async (_, response) => {
+    server.use(response)
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
+    await openExam(app)
+
+    const section = await explainers()
+    await app.user.click(section.getByRole('button', { name: 'Sugerir temas' }))
+
+    expect(await section.findByRole('alert')).toHaveTextContent(
+      'La respuesta del modelo no se pudo usar. Inténtalo de nuevo.',
+    )
+    expect(section.queryByRole('group', { name: 'Temas sugeridos' })).not.toBeInTheDocument()
+  })
+
+  it('says the tablet is offline', async () => {
+    server.use(openRouter.structured.offline())
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
+    await openExam(app)
+
+    const section = await explainers()
+    await app.user.click(section.getByRole('button', { name: 'Sugerir temas' }))
+
+    expect(await section.findByRole('alert')).toHaveTextContent(
+      'No hay conexión a internet. Conéctate e inténtalo de nuevo.',
+    )
+  })
+})
+
+describe('when Explainers cannot be made yet', () => {
+  it('asks for the key first', async () => {
+    const app = await renderApp({ student: ana, subjects, exams: [mathExam] })
+    await openExam(app)
+
+    const section = await explainers()
+    expect(await section.findByRole('note')).toHaveTextContent('Configura la clave de OpenRouter')
+    expect(section.getByRole('button', { name: 'Sugerir temas' })).toBeDisabled()
+    await app.user.type(section.getByLabelText('Tema'), 'Fracciones')
+    expect(section.getByRole('button', { name: 'Crear explicación' })).toBeDisabled()
+  })
+
+  it('waits for at least one read Page', async () => {
+    const app = await renderApp({
+      student: ana,
+      openRouterKey: 'sk-or-v1-good',
+      subjects,
+      exams: [{ subject: 'Matemáticas', period: q1 }],
+    })
+    await openExam(app)
+
+    const section = await explainers()
+    expect(await section.findByText('Agrega material y espera a que se lea al menos una página.')).toBeInTheDocument()
+    expect(section.getByRole('button', { name: 'Sugerir temas' })).toBeDisabled()
+    await app.user.type(section.getByLabelText('Tema'), 'Fracciones')
+    expect(section.getByRole('button', { name: 'Crear explicación' })).toBeDisabled()
+  })
+
+  it('warns how many Pages the topic suggestions leave out', async () => {
+    server.use(openRouter.readPage.status(400))
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
+    await openExam(app)
+    await app.user.upload(screen.getByLabelText('Agregar material'), photo('unidad 2.jpg'))
+
+    const section = await explainers()
+    expect(await section.findByText('1 página aún no se incluye.')).toBeInTheDocument()
+    expect(section.getByRole('button', { name: 'Sugerir temas' })).toBeEnabled()
+  })
+})
+
 describe('keeping Explainers', () => {
   it('keeps any number of Explainers on the Exam, readable offline after a restart', async () => {
     server.use(
@@ -163,10 +261,7 @@ describe('keeping Explainers', () => {
       await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
     }
 
-    expect((await (await explainers()).findAllByRole('link')).map((link) => link.textContent)).toEqual([
-      'Suma de fracciones',
-      'Fracciones equivalentes',
-    ])
+    expect(await listedExplainers()).toEqual(['Suma de fracciones', 'Fracciones equivalentes'])
 
     await app.reopen()
     server.use(openRouter.webSearch.offline(), openRouter.structured.offline())
@@ -203,12 +298,11 @@ describe('keeping Explainers', () => {
     )
 
     await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
-    const remaining = async () => (await (await explainers()).findAllByRole('link')).map((l) => l.textContent)
-    expect(await remaining()).toEqual(['Suma de fracciones'])
+    expect(await listedExplainers()).toEqual(['Suma de fracciones'])
 
     await app.reopen()
     await openExam(app)
-    expect(await remaining()).toEqual(['Suma de fracciones'])
+    expect(await listedExplainers()).toEqual(['Suma de fracciones'])
   })
 })
 
@@ -236,7 +330,7 @@ describe('deleting an Exam with Explainers', () => {
     await app.user.selectOptions(await screen.findByLabelText('Materia'), 'Matemáticas')
     await app.user.click(screen.getByRole('button', { name: 'Crear examen' }))
     await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
-    expect((await explainers()).queryAllByRole('link')).toEqual([])
+    expect(await (await explainers()).findByText('Aún no tienes explicaciones.')).toBeInTheDocument()
   })
 
   it('names them when deleting the Subject', async () => {
