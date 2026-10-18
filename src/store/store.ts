@@ -3,7 +3,7 @@
 // It speaks in domain terms (getStudent, saveModel, ...) rather than tables.
 // Reads are plain async functions, so the UI can wrap them in
 // `useLiveQuery(() => store.getStudent())` and re-render when data changes.
-import Dexie, { type EntityTable } from 'dexie'
+import Dexie, { type EntityTable, type Table } from 'dexie'
 import { DEFAULT_MODELS, JOBS, type Job } from '../settings/models'
 
 export type GradeLevel = number
@@ -79,6 +79,23 @@ export class DuplicateExamError extends Error {
   }
 }
 
+/**
+ * The kinds of data stored under an Exam, which go when the Exam (or its
+ * Subject) is deleted. Later tickets add theirs here ('materials',
+ * 'summary', 'explainers', 'quizzes', ...), with a line in `examParts`
+ * below and its text in `strings.deletion.examParts`.
+ */
+export type ExamPartKind = never
+
+/** How much of one kind of data an Exam holds, e.g. { kind: 'materials', count: 3 }. */
+export type ExamPartCount = { kind: ExamPartKind; count: number }
+
+/** What deleting an Exam loses: the Exam and everything stored under it. */
+export type ExamDeletion = { exam: Exam; parts: ExamPartCount[] }
+
+/** What deleting a Subject loses: the Subject and each of its Exams, newest Period first. */
+export type SubjectDeletion = { subject: Subject; exams: ExamDeletion[] }
+
 // Singleton records (one Student, one Settings) live in one table, keyed by id.
 type SingletonRow =
   | { id: 'student'; value: Student }
@@ -108,6 +125,34 @@ export const DEFAULT_DB_NAME = 'comprehensive-exams'
 export function createStore(dbName: string = DEFAULT_DB_NAME) {
   const db = new Database(dbName)
 
+  // Data stored under an Exam, one entry per ExamPartKind. Each entry names
+  // the tables it touches (so deletes run in one transaction), counts what an
+  // Exam holds for the confirmation, and deletes it for a set of Exams.
+  //
+  //   { kind: 'materials', tables: [db.materials, db.pages],
+  //     count: (examId) => db.materials.where('examId').equals(examId).count(),
+  //     delete: async (examIds) => { ...pages first, then materials... } },
+  const examParts: {
+    kind: ExamPartKind
+    tables: Table[]
+    count: (examId: number) => Promise<number>
+    delete: (examIds: number[]) => Promise<void>
+  }[] = []
+  const examPartTables = () => examParts.flatMap((part) => part.tables)
+
+  async function examDeletion(exam: Exam): Promise<ExamDeletion> {
+    const parts = await Promise.all(
+      examParts.map(async (part) => ({ kind: part.kind, count: await part.count(exam.id) })),
+    )
+    return { exam, parts: parts.filter((part) => part.count > 0) }
+  }
+
+  /** Deletes Exams and everything under them; call inside a transaction over examPartTables(). */
+  async function deleteExamsWithParts(examIds: number[]) {
+    for (const part of examParts) await part.delete(examIds)
+    await db.exams.bulkDelete(examIds)
+  }
+
   async function readSettings(): Promise<StoredSettings> {
     const row = await db.singletons.get('settings')
     return row?.id === 'settings' ? row.value : {}
@@ -122,6 +167,12 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       period: periods[i]!,
       examDate: row.examDate,
     }))
+  }
+
+  /** The Exam, or null if there is none with that id (e.g. it was deleted). */
+  async function getExam(id: number): Promise<Exam | null> {
+    const row = await db.exams.get(id)
+    return row ? (await withSubjectAndPeriod([row]))[0] : null
   }
 
   /** Every Period, newest first. */
@@ -206,6 +257,24 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       return db.subjects.add({ ...subject, name: subject.name.trim() })
     },
 
+    /** What deleting this Subject would lose, for the confirmation; null if it doesn't exist. */
+    async subjectDeletion(subjectId: number): Promise<SubjectDeletion | null> {
+      const subject = await db.subjects.get(subjectId)
+      if (!subject) return null
+      const rows = await db.exams.where('subjectId').equals(subjectId).toArray()
+      const exams = (await withSubjectAndPeriod(rows)).sort((a, b) => newestFirst(a.period, b.period))
+      return { subject, exams: await Promise.all(exams.map(examDeletion)) }
+    },
+
+    /** Deletes the Subject, all its Exams and everything stored under them. */
+    async deleteSubject(subjectId: number) {
+      await db.transaction('rw', [db.subjects, db.exams, ...examPartTables()], async () => {
+        const examIds = await db.exams.where('subjectId').equals(subjectId).primaryKeys()
+        await deleteExamsWithParts(examIds)
+        await db.subjects.delete(subjectId)
+      })
+    },
+
     /** Renames a Subject and/or changes its Language. */
     async updateSubject(id: number, change: SubjectDraft) {
       await db.subjects.update(id, { ...change, name: change.name.trim() })
@@ -244,13 +313,22 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       })
     },
 
-    /** The Exam, or null if there is none with that id (e.g. it was deleted). */
-    async getExam(id: number): Promise<Exam | null> {
-      const row = await db.exams.get(id)
-      return row ? (await withSubjectAndPeriod([row]))[0] : null
-    },
+    getExam,
 
     periodExams,
+
+    /** What deleting this Exam would lose, for the confirmation; null if it doesn't exist. */
+    async examDeletion(examId: number): Promise<ExamDeletion | null> {
+      const exam = await getExam(examId)
+      return exam ? examDeletion(exam) : null
+    },
+
+    /** Deletes the Exam and everything stored under it. */
+    async deleteExam(examId: number) {
+      await db.transaction('rw', [db.exams, ...examPartTables()], () =>
+        deleteExamsWithParts([examId]),
+      )
+    },
 
     /** Sets, changes or (with null) clears the Exam Date. */
     async setExamDate(examId: number, examDate: IsoDate | null) {

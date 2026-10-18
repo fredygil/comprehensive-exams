@@ -1,12 +1,14 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Navigate, useParams } from 'react-router'
+import { Navigate, useNavigate, useParams } from 'react-router'
 import { useServices } from '../../app/services'
+import { DeleteWithConfirmation, examConfirmation } from '../../components/DeleteWithConfirmation'
 import { strings } from '../../strings'
 import { ExamDateSection } from './ExamDateSection'
 
 /** The study space for one Exam. Later tickets add Material, Study Aids and quizzes here. */
 export function ExamScreen() {
   const { store } = useServices()
+  const navigate = useNavigate()
   const examId = Number(useParams().examId)
   const exam = useLiveQuery(() => store.getExam(examId), [store, examId])
 
@@ -21,6 +23,19 @@ export function ExamScreen() {
         <p className="hint">{strings.periods.label(exam.period)}</p>
       </header>
       <ExamDateSection exam={exam} />
+      <div>
+        <DeleteWithConfirmation
+          action={strings.deletion.exam.action}
+          load={async () => {
+            const deletion = await store.examDeletion(exam.id)
+            return deletion && examConfirmation(deletion)
+          }}
+          onDelete={async () => {
+            await store.deleteExam(exam.id)
+            navigate('/', { replace: true })
+          }}
+        />
+      </div>
     </main>
   )
 }

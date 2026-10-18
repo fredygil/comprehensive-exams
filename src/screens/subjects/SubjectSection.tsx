@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useServices } from '../../app/services'
+import { DeleteWithConfirmation, subjectConfirmation } from '../../components/DeleteWithConfirmation'
 import { LanguageSelect } from '../../components/LanguageSelect'
 import { Section } from '../../components/Section'
 import type { Subject } from '../../store/store'
@@ -34,6 +35,14 @@ export function SubjectSection({ subject }: { subject: Subject }) {
           </button>
         </div>
       </form>
+      <DeleteWithConfirmation
+        action={strings.deletion.subject.action}
+        load={async () => {
+          const deletion = await store.subjectDeletion(subject.id)
+          return deletion && subjectConfirmation(deletion)
+        }}
+        onDelete={() => store.deleteSubject(subject.id)}
+      />
     </Section>
   )
 }

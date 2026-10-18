@@ -3,7 +3,7 @@
 // Vocabulary follows GLOSSARY.md.
 import type { GatewayErrorKind } from './gateway/errors.ts'
 import type { Job } from './settings/models.ts'
-import type { Language, PeriodDraft, Quarter } from './store/store.ts'
+import type { ExamPartKind, Language, PeriodDraft, Quarter } from './store/store.ts'
 
 function formatUsd(usd: number) {
   return `$${usd.toFixed(2)}`
@@ -140,6 +140,27 @@ export const strings = {
       duplicate: (subject: string, period: string) =>
         `Ya tienes un examen de ${subject} en ${period}. Solo puede haber uno por materia y periodo.`,
     },
+  },
+
+  /** Delete confirmations: they name everything that will be lost. */
+  deletion: {
+    willLose: 'Se borrará para siempre:',
+    cannotUndo: 'Esto no se puede deshacer.',
+    confirm: 'Sí, eliminar',
+    cancel: 'Cancelar',
+    exam: {
+      action: 'Eliminar examen',
+      title: '¿Eliminar este examen?',
+      item: (subject: string, period: string) => `El examen de ${subject} de ${period}`,
+    },
+    subject: {
+      action: 'Eliminar materia',
+      title: (subject: string) => `¿Eliminar la materia ${subject}?`,
+      item: (subject: string) => `La materia ${subject}`,
+      noExams: 'No tiene exámenes.',
+    },
+    /** One line per kind of data under an Exam, e.g. materials: (n) => `${n} materiales`. */
+    examParts: {} satisfies Record<ExamPartKind, (count: number) => string>,
   },
 
   needsKey: {
