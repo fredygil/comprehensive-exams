@@ -184,6 +184,71 @@ describe('renaming a Material', () => {
   })
 })
 
+describe("the Exam's material revision", () => {
+  /** The Exam's material revision, read through the Store's domain query. */
+  async function revision(app: App) {
+    const current = await app.store.currentPeriodExams()
+    return current!.exams[0].materialRevision
+  }
+
+  it('goes up when Material is added, its text edited or it is deleted; not on a rename', async () => {
+    server.use(openRouter.readPage.text('Texto leído.'))
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [{ subject: 'Matemáticas', period: q1 }] })
+    await openExam(app)
+    const start = await revision(app)
+    expect(start).toBe(0)
+
+    await app.user.upload(screen.getByLabelText('Agregar material'), photo('unidad 1.jpg'))
+    await openMaterial(app, 'unidad 1')
+    await recognizedText().findByText('Texto leído.')
+    expect(await revision(app)).toBe(start + 1)
+
+    await correctText(app, 'Texto corregido.')
+    expect(await revision(app)).toBe(start + 2)
+
+    // Saving the text unchanged is not an edit.
+    await app.user.click(recognizedText().getByRole('button', { name: 'Corregir texto' }))
+    await app.user.click(recognizedText().getByRole('button', { name: 'Guardar texto' }))
+    await recognizedText().findByRole('button', { name: 'Corregir texto' })
+    expect(await revision(app)).toBe(start + 2)
+
+    await app.user.clear(thisMaterial().getByLabelText('Nombre'))
+    await app.user.type(thisMaterial().getByLabelText('Nombre'), 'Unidad 1 – Fracciones')
+    await app.user.click(thisMaterial().getByRole('button', { name: 'Cambiar nombre' }))
+    await screen.findByRole('heading', { name: 'Unidad 1 – Fracciones', level: 1 })
+    expect(await revision(app)).toBe(start + 2)
+
+    await app.user.click(thisMaterial().getByRole('button', { name: 'Eliminar material' }))
+    await app.user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Sí, eliminar' }))
+    await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+    expect(await revision(app)).toBe(start + 3)
+
+    await app.reopen()
+    expect(await revision(app)).toBe(start + 3)
+  })
+
+  it('is kept per Exam', async () => {
+    const app = await renderApp({
+      student: ana,
+      subjects: [...subjects, { name: 'Science', language: 'en' }],
+      exams: [
+        { subject: 'Matemáticas', period: q1, materials: [{ name: 'Unidad 1', pages: ['Fracciones.'] }] },
+        { subject: 'Science', period: q1 },
+      ],
+    })
+    await openExam(app)
+    await openMaterial(app, 'Unidad 1')
+    const exams = async () => (await app.store.currentPeriodExams())!.exams
+    const science = (await exams()).find((exam) => exam.subject.name === 'Science')!
+
+    await correctText(app, 'Fracciones corregidas.')
+
+    expect((await exams()).find((exam) => exam.id === science.id)!.materialRevision).toBe(
+      science.materialRevision,
+    )
+  })
+})
+
 describe('deleting a Material', () => {
   const twoMaterials = [
     {

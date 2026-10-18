@@ -55,6 +55,7 @@ type ExamRow = {
   subjectId: number
   periodId: number
   examDate: IsoDate | null
+  materialRevision: number
 }
 
 /** An Exam as the screens see it: with its Subject and Period. */
@@ -63,6 +64,11 @@ export type Exam = {
   subject: Subject
   period: Period
   examDate: IsoDate | null
+  /**
+   * Goes up whenever the Exam's Material changes: added, deleted, or its
+   * Recognized Text edited. A Summary built at an older revision is Outdated.
+   */
+  materialRevision: number
 }
 
 export type ExamDraft = {
@@ -239,6 +245,7 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       subject: subjects[i]!,
       period: periods[i]!,
       examDate: row.examDate,
+      materialRevision: row.materialRevision,
     }))
   }
 
@@ -246,6 +253,13 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
   async function getExam(id: number): Promise<Exam | null> {
     const row = await db.exams.get(id)
     return row ? (await withSubjectAndPeriod([row]))[0] : null
+  }
+
+  /** Marks the Exam's Material as changed; call inside a transaction that includes db.exams. */
+  function bumpMaterialRevision(examId: number) {
+    return db.exams.where('id').equals(examId).modify((exam) => {
+      exam.materialRevision += 1
+    })
   }
 
   /** The Page, unless the Student has edited it (then reading must leave it alone). */
@@ -391,7 +405,12 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
           .equals([exam.subjectId, periodId])
           .count()
         if (duplicate) throw new DuplicateExamError()
-        return db.exams.add({ subjectId: exam.subjectId, periodId, examDate: exam.examDate })
+        return db.exams.add({
+          subjectId: exam.subjectId,
+          periodId,
+          examDate: exam.examDate,
+          materialRevision: 0,
+        })
       })
     },
 
@@ -428,7 +447,7 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
      * Returns their ids. Reading them is the Reading Queue's job.
      */
     async addMaterials(examId: number, drafts: MaterialDraft[]): Promise<number[]> {
-      return db.transaction('rw', [db.materials, db.pages, db.pageOriginals], async () => {
+      return db.transaction('rw', [db.exams, db.materials, db.pages, db.pageOriginals], async () => {
         const ids: number[] = []
         for (const draft of drafts) {
           const materialId = await db.materials.add({
@@ -455,6 +474,7 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
           }
           ids.push(materialId)
         }
+        if (ids.length) await bumpMaterialRevision(examId)
         return ids
       })
     },
@@ -484,11 +504,14 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
 
     /** Deletes a Material with its Pages and their scans. */
     async deleteMaterial(id: number) {
-      await db.transaction('rw', [db.materials, db.pages, db.pageOriginals], async () => {
+      await db.transaction('rw', [db.exams, db.materials, db.pages, db.pageOriginals], async () => {
+        const material = await db.materials.get(id)
+        if (!material) return
         const pageIds = await db.pages.where('materialId').equals(id).primaryKeys()
         await db.pageOriginals.bulkDelete(pageIds)
         await db.pages.bulkDelete(pageIds)
         await db.materials.delete(id)
+        await bumpMaterialRevision(material.examId)
       })
     },
 
@@ -513,7 +536,13 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
      * overwrites it.
      */
     async editRecognizedText(pageId: number, recognizedText: string) {
-      await db.pages.update(pageId, { recognizedText, editedByStudent: true })
+      await db.transaction('rw', [db.exams, db.materials, db.pages], async () => {
+        const page = await db.pages.get(pageId)
+        const material = page && (await db.materials.get(page.materialId))
+        if (!material || page.recognizedText === recognizedText) return
+        await db.pages.update(pageId, { recognizedText, editedByStudent: true })
+        await bumpMaterialRevision(material.examId)
+      })
     },
 
     // Page reading (the Reading Queue). Each is a no-op if the Page is gone,
