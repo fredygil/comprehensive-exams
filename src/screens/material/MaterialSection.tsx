@@ -11,6 +11,7 @@ import { strings } from '../../strings'
 export function MaterialSection({ exam }: { exam: Exam }) {
   const { store, readingQueue } = useServices()
   const materials = useLiveQuery(() => store.examMaterials(exam.id), [store, exam.id])
+  const progress = useLiveQuery(() => store.examReadingProgress(exam.id), [store, exam.id])
   const [rejected, setRejected] = useState<string[]>([])
   const text = strings.material
 
@@ -43,6 +44,9 @@ export function MaterialSection({ exam }: { exam: Exam }) {
             {materials.map((material) => (
               <li key={material.id}>
                 <Link to={`/examenes/${exam.id}/material/${material.id}`}>{material.name}</Link>
+                {progress?.has(material.id) && (
+                  <span className="hint">{text.progress(progress.get(material.id)!)}</span>
+                )}
               </li>
             ))}
           </ul>

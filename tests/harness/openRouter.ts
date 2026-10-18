@@ -74,6 +74,33 @@ function chatHandler(
   })
 }
 
+/**
+ * One scripted answer to a request: Markdown text (a 200), an HTTP status
+ * (OpenRouter's error body), 'offline' (fetch rejects) or 'hang' (never
+ * answered while the test runs, e.g. a Page still being read when the app
+ * closes).
+ */
+export type Answer = string | number | 'offline' | 'hang'
+
+// Requests left hanging, answered as network errors after each test (setup.ts)
+// so nothing waits forever.
+let hanging: (() => void)[] = []
+
+/** Called by setup.ts after each test. */
+export function releaseHangingRequests() {
+  for (const release of hanging) release()
+  hanging = []
+}
+
+function answer(answer: Answer): Response | Promise<Response> {
+  if (answer === 'offline') return HttpResponse.error()
+  if (answer === 'hang') {
+    return new Promise((resolve) => hanging.push(() => resolve(HttpResponse.error())))
+  }
+  if (typeof answer === 'number') return failure(answer, `HTTP ${answer}`)
+  return HttpResponse.json(chatCompletion(answer))
+}
+
 /** Scripted responses, grouped by endpoint or operation. Each returns an MSW handler. */
 export const openRouter = {
   /** Page reading: chat completions that carry a Page's image or file. */
@@ -87,6 +114,15 @@ export const openRouter = {
       return chatHandler(isReadPage, () =>
         HttpResponse.json(chatCompletion(markdowns[Math.min(next++, markdowns.length - 1)])),
       )
+    },
+    /**
+     * Each reading request in turn gets the next answer in the list (the last
+     * one repeats), e.g. `inTurn(['Página uno.', 400, 'hang'])`. Pages are
+     * read one at a time, in order, so this scripts each Page's outcome.
+     */
+    inTurn: (answers: Answer[]) => {
+      let next = 0
+      return chatHandler(isReadPage, () => answer(answers[Math.min(next++, answers.length - 1)]))
     },
     status: (status: number, metadata?: Record<string, unknown>) =>
       chatHandler(isReadPage, () => failure(status, `HTTP ${status}`, metadata)),

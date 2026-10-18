@@ -150,6 +150,10 @@ export const strings = {
     unsupported: (fileName: string) =>
       `No se pudo agregar «${fileName}»: solo se pueden agregar fotos JPG o PNG.`,
     backToExam: (subject: string) => `Volver a ${subject}`,
+    /** Reading progress: "12 / 30 páginas", plus "· 1 con error" when some failed. */
+    progress: ({ read, failed, total }: { read: number; failed: number; total: number }) =>
+      `${read} / ${total} ${total === 1 ? 'página' : 'páginas'}` +
+      (failed > 0 ? ` · ${failed} con error` : ''),
     page: {
       /** The alt text of a Page's original scan: "Página 1: original". */
       original: (number: number) => `Página ${number}: original`,
