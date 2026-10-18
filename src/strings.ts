@@ -256,6 +256,12 @@ export const strings = {
       empty: 'Aún no has entregado ningún quiz.',
       questions: (n: number) => (n === 1 ? '1 pregunta' : `${n} preguntas`),
     },
+    /** Every Question of a Submitted quiz, under its Score and Feedback. */
+    review: {
+      title: 'Todas las preguntas',
+      right: 'Bien',
+      wrong: 'Mal',
+    },
     /** Asked before submitting with unanswered Questions. */
     unanswered: {
       title: '¿Entregar el quiz?',

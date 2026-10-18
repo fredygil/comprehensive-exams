@@ -5,8 +5,12 @@ import { strings } from '../../strings'
 import { DiscardQuiz } from './DiscardQuiz'
 import { QuizQuestions } from './QuizQuestions'
 import { QuizResults } from './QuizResults'
+import { QuizReview } from './QuizReview'
 
-/** A Practice Quiz: its Questions one per screen while In Progress; once Submitted, its Score and Feedback. */
+/**
+ * A Practice Quiz: its Questions one per screen while In Progress (or discard
+ * it); once Submitted, its Score, Feedback and every Question with her answer.
+ */
 export function QuizScreen() {
   const { store } = useServices()
   const navigate = useNavigate()
@@ -38,7 +42,10 @@ export function QuizScreen() {
           </div>
         </>
       ) : (
-        <QuizResults quiz={quiz} questions={questions} />
+        <>
+          <QuizResults quiz={quiz} questions={questions} />
+          <QuizReview quiz={quiz} questions={questions} />
+        </>
       )}
     </main>
   )

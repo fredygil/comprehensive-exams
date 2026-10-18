@@ -1,7 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { setClock } from './harness/clock'
-import { openRouter, server, type ScriptedQuestion } from './harness/openRouter'
+import { OPENROUTER, openRouter, openRouterRequests, server, type ScriptedQuestion } from './harness/openRouter'
 import { renderApp, type RenderAppOptions } from './harness/renderApp'
 
 const q1 = { schoolYearStart: 2026, quarter: 1 as const }
@@ -198,6 +199,71 @@ describe('the history of Submitted quizzes', () => {
       '18 de octubre de 2026, 9:10 · 2 preguntas · 1 / 2',
     ])
     expect(history.queryByRole('button')).not.toBeInTheDocument()
+  })
+})
+
+describe('reviewing a past quiz', () => {
+  it('shows every Question, her answer, the correct option and the Feedback, offline and after deleting a Material', async () => {
+    server.use(openRouter.practiceQuiz.questions([question(1, '1'), question(2, '2'), question(3, '2')]))
+    const app = await renderApp(
+      withMaterial([
+        { name: 'Unidad 1', pages: ['Las fracciones.'] },
+        { name: 'Unidad 2', pages: ['Los decimales.'] },
+      ]),
+    )
+    await openExam(app)
+    await startQuiz(app, 3)
+    await choose(app, 'Correcta 1')
+    await next(app)
+    await choose(app, 'Incorrecta 2a')
+    await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+    await app.user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Sí, entregar' }),
+    )
+    await screen.findByRole('heading', { name: 'Resultado' })
+    await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+
+    // Delete "Unidad 2", the source of Questions 2 and 3.
+    const material = within(await screen.findByRole('region', { name: 'Material' }))
+    await app.user.click(await material.findByRole('link', { name: 'Unidad 2' }))
+    const thisMaterial = within(await screen.findByRole('region', { name: 'Este material' }))
+    await app.user.click(thisMaterial.getByRole('button', { name: 'Eliminar material' }))
+    await app.user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Sí, eliminar' }))
+    await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+
+    await app.reopen()
+    server.use(http.all(`${OPENROUTER}/*`, () => HttpResponse.error()))
+    const sent = openRouterRequests.length
+    await openExam(app)
+    const history = within(await (await historySection()).findByRole('list', { name: 'Quizzes entregados' }))
+    await app.user.click(history.getByRole('link'))
+
+    expect(await screen.findByText('1 / 3')).toBeInTheDocument()
+    const all = within(screen.getByRole('region', { name: 'Todas las preguntas' })).getAllByRole('listitem')
+    expect(all).toHaveLength(3)
+    expect(all[0]).toHaveTextContent('Pregunta 1')
+    expect(all[0]).toHaveTextContent('Pregunta número 1')
+    expect(all[0]).toHaveTextContent('Bien')
+    expect(all[0]).toHaveTextContent('Tu respuesta: Correcta 1')
+    expect(all[0]).toHaveTextContent('Respuesta correcta: Correcta 1')
+    expect(all[1]).toHaveTextContent('Pregunta número 2')
+    expect(all[1]).toHaveTextContent('Mal')
+    expect(all[1]).toHaveTextContent('Tu respuesta: Incorrecta 2a')
+    expect(all[1]).toHaveTextContent('Respuesta correcta: Correcta 2')
+    expect(all[2]).toHaveTextContent('Pregunta número 3')
+    expect(all[2]).toHaveTextContent('Tu respuesta: Sin responder')
+    expect(all[2]).toHaveTextContent('Respuesta correcta: Correcta 3')
+
+    const feedback = within(screen.getByRole('region', { name: 'Respuestas incorrectas' })).getAllByRole('listitem')
+    expect(feedback).toHaveLength(2)
+    expect(feedback[0]).toHaveTextContent('Explicación 2')
+    expect(feedback[0]).toHaveTextContent('Material: Unidad 2')
+    expect(feedback[1]).toHaveTextContent('Explicación 3')
+    expect(feedback[1]).toHaveTextContent('Material: Unidad 2')
+
+    // Submitted quizzes are kept for good.
+    expect(screen.queryByRole('button', { name: /Eliminar|Descartar/ })).not.toBeInTheDocument()
+    expect(openRouterRequests.length).toBe(sent)
   })
 })
 
