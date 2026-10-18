@@ -11,6 +11,7 @@ export function Layout() {
           <NavLink to="/" end>
             {strings.nav.home}
           </NavLink>
+          <NavLink to="/materias">{strings.nav.subjects}</NavLink>
           <NavLink to="/ajustes">{strings.nav.settings}</NavLink>
         </nav>
       </header>

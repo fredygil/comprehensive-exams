@@ -24,6 +24,17 @@ type StoredSettings = {
   models?: Partial<Record<Job, string>>
 }
 
+export type Language = 'es' | 'en'
+export const LANGUAGES: Language[] = ['es', 'en']
+
+export type Subject = {
+  id: number
+  name: string
+  language: Language
+}
+
+export type SubjectDraft = Omit<Subject, 'id'>
+
 // Singleton records (one Student, one Settings) live in one table, keyed by id.
 type SingletonRow =
   | { id: 'student'; value: Student }
@@ -31,6 +42,7 @@ type SingletonRow =
 
 class Database extends Dexie {
   singletons!: EntityTable<SingletonRow, 'id'>
+  subjects!: EntityTable<Subject, 'id'>
 
   constructor(name: string) {
     super(name)
@@ -38,6 +50,7 @@ class Database extends Dexie {
     // new `this.version(n)` instead of editing an old one.
     this.version(1).stores({
       singletons: 'id',
+      subjects: '++id',
     })
   }
 }
@@ -107,6 +120,21 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       await writeSettings({ models: {} })
     },
 
+    /** Every Subject, by name. */
+    async listSubjects(): Promise<Subject[]> {
+      const subjects = await db.subjects.toArray()
+      return subjects.sort(byName)
+    },
+
+    async createSubject(subject: SubjectDraft): Promise<number> {
+      return db.subjects.add({ ...subject, name: subject.name.trim() })
+    },
+
+    /** Renames a Subject and/or changes its Language. */
+    async updateSubject(id: number, change: SubjectDraft) {
+      await db.subjects.update(id, { ...change, name: change.name.trim() })
+    },
+
     async close() {
       db.close()
     },
@@ -114,3 +142,7 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
 }
 
 export type Store = ReturnType<typeof createStore>
+
+function byName(a: { name: string }, b: { name: string }) {
+  return a.name.localeCompare(b.name, 'es')
+}

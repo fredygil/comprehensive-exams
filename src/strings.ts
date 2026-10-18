@@ -3,6 +3,7 @@
 // Vocabulary follows GLOSSARY.md.
 import type { GatewayErrorKind } from './gateway/errors.ts'
 import type { Job } from './settings/models.ts'
+import type { Language } from './store/store.ts'
 
 function formatUsd(usd: number) {
   return `$${usd.toFixed(2)}`
@@ -27,6 +28,7 @@ export const strings = {
 
   nav: {
     home: 'Inicio',
+    subjects: 'Materias',
     settings: 'Ajustes',
   },
 
@@ -68,6 +70,24 @@ export const strings = {
       saved: 'Modelos guardados.',
       reset: 'Usar los predeterminados',
     },
+  },
+
+  languages: {
+    es: 'Español',
+    en: 'English',
+  } satisfies Record<Language, string>,
+
+  subjects: {
+    title: 'Materias',
+    name: 'Nombre',
+    language: 'Idioma',
+    chooseLanguage: 'Elige el idioma',
+    save: 'Guardar',
+    new: {
+      title: 'Nueva materia',
+      create: 'Crear materia',
+    },
+    empty: 'Aún no tienes materias.',
   },
 
   needsKey: {
