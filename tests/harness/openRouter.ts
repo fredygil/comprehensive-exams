@@ -6,6 +6,7 @@
 // 'error' in setup.ts), so a new kind of call needs a handler here first.
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
+import { bytesOfDataUrl } from './files'
 
 export const OPENROUTER = 'https://openrouter.ai/api/v1'
 
@@ -97,6 +98,20 @@ export type ScriptedQuestion = {
   sourceMaterialId: string
 }
 
+/** The scan a page-reading request carries: its type and bytes. */
+export type SentOriginal = { mime: string; bytes: Uint8Array }
+
+type SentPart = { type?: string; image_url?: { url: string }; file?: { file_data: string } }
+
+function sentOriginal(body: ChatBody): SentOriginal {
+  const parts = (body.messages ?? []).flatMap((message) =>
+    Array.isArray(message.content) ? (message.content as SentPart[]) : [],
+  )
+  const part = parts.find((p) => p.type === 'image_url' || p.type === 'file')
+  const url = part?.image_url?.url ?? part?.file?.file_data ?? ''
+  return { mime: url.slice('data:'.length, url.indexOf(';')), bytes: bytesOfDataUrl(url) }
+}
+
 /**
  * A handler for one kind of chat completion. Other chat completions fall
  * through to the next handler, so tests can script page reading, quizzes and
@@ -173,6 +188,12 @@ export const openRouter = {
       )
     },
     /**
+     * Each Page reads as whatever `read` makes of the scan it was sent
+     * (decoded from its image or file part), e.g. to tell PDF Pages apart.
+     */
+    as: (read: (original: SentOriginal) => string | Promise<string>) =>
+      chatHandler(isReadPage, async (body) => HttpResponse.json(chatCompletion(await read(sentOriginal(body))))),
+    /**
      * Each reading request in turn gets the next answer in the list (the last
      * one repeats), e.g. `inTurn(['Página uno.', 400, 'hang'])`. Pages are
      * read one at a time, in order, so this scripts each Page's outcome.
@@ -192,6 +213,9 @@ export const openRouter = {
 
   /** Topic suggestions: structured JSON in the 'topics' schema. */
   topics: structured('topics'),
+
+  /** Summaries: structured JSON in the 'summary' schema ({ topics: [{ title, content }] }). */
+  summary: structured('summary'),
 
   /** Practice Quiz generation: structured JSON in the 'practice_quiz' schema. */
   practiceQuiz: {

@@ -7,7 +7,8 @@ import { Section } from '../../components/Section'
 import { GatewayError } from '../../gateway/errors'
 import type { Exam } from '../../store/store'
 import { strings } from '../../strings'
-import { examText, generateExplainer, suggestTopics } from '../../studyAids/explainers'
+import { examText } from '../../studyAids/examText'
+import { generateExplainer, suggestTopics } from '../../studyAids/explainers'
 
 /** What the section is waiting for from the model, if anything. */
 type Pending = { kind: 'topics' } | { kind: 'explainer'; topic: string } | null

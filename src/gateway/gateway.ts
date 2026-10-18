@@ -160,20 +160,21 @@ export function createModelGateway(options: ModelGatewayOptions) {
   }
 
   return {
-    /** Reads one Page with the vision model: its scan → Recognized Text (Markdown). */
+    /**
+     * Reads one Page with the vision model: its scan → Recognized Text
+     * (Markdown). A photo goes as an image; a PDF Page (a single-page PDF) as
+     * a file read by the model's native PDF engine.
+     */
     async readPage({ prompt, original }: ReadPageRequest): Promise<string> {
       const url = await toDataUrl(original.bytes, original.mime)
+      const isPdf = original.mime === 'application/pdf'
+      const scan: ContentPart = isPdf
+        ? { type: 'file', file: { filename: 'page.pdf', file_data: url } }
+        : { type: 'image_url', image_url: { url } }
       const { content } = await complete('readPages', {
         reasoning: { effort: 'low' },
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url } },
-            ],
-          },
-        ],
+        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, scan] }],
+        ...(isPdf && { plugins: [{ id: 'file-parser', pdf: { engine: 'native' } }] }),
       })
       return content.trim()
     },

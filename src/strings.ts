@@ -3,7 +3,7 @@
 // Vocabulary follows GLOSSARY.md.
 import type { GatewayErrorKind } from './gateway/errors.ts'
 import type { Job } from './settings/models.ts'
-import type { ExamPartKind, Language, PeriodDraft, Quarter } from './store/store.ts'
+import type { ExamPartKind, Language, PeriodDraft, Quarter, QuizKind } from './store/store.ts'
 
 function formatUsd(usd: number) {
   return `$${usd.toFixed(2)}`
@@ -145,10 +145,13 @@ export const strings = {
   material: {
     title: 'Material',
     add: 'Agregar material',
-    addHint: 'Elige fotos de tu cuaderno (JPG o PNG). Puedes elegir varias a la vez.',
+    addHint:
+      'Elige los PDF que escaneaste con Drive o fotos de tu cuaderno (JPG o PNG). Puedes elegir varios a la vez.',
     empty: 'Aún no hay material para este examen.',
     unsupported: (fileName: string) =>
-      `No se pudo agregar «${fileName}»: solo se pueden agregar fotos JPG o PNG.`,
+      `No se pudo agregar «${fileName}»: solo se pueden agregar PDF o fotos JPG o PNG.`,
+    unreadablePdf: (fileName: string) =>
+      `No se pudo agregar «${fileName}»: el PDF está dañado o protegido.`,
     backToExam: (subject: string) => `Volver a ${subject}`,
     /** Renaming and deleting one Material. */
     manage: {
@@ -170,6 +173,12 @@ export const strings = {
       original: (number: number) => `Página ${number}: original`,
       recognizedText: 'Texto reconocido',
       reading: 'Leyendo la página…',
+      /** Where she is in a Material: "Página 2 de 12". */
+      position: (number: number, total: number) => `Página ${number} de ${total}`,
+      previous: 'Página anterior',
+      next: 'Página siguiente',
+      /** The Page Viewer couldn't draw a PDF Page. */
+      cannotShow: 'No se pudo mostrar esta página.',
       edit: 'Corregir texto',
       /** The label of a Page's text editor: "Texto reconocido de la página 1". */
       editor: (number: number) => `Texto reconocido de la página ${number}`,
@@ -226,6 +235,35 @@ export const strings = {
       correct: 'Respuesta correcta:',
       material: 'Material:',
     },
+    /** What each kind of quiz is called, wherever a quiz is shown or listed. */
+    kinds: {
+      practice: 'Quiz de práctica',
+      mistakes: 'Quiz de errores',
+    } satisfies Record<QuizKind, string>,
+    mistakes: {
+      section: 'Quiz de errores',
+      /** "Tienes 3 preguntas por repasar." */
+      count: (n: number) => (n === 1 ? 'Tienes 1 pregunta por repasar.' : `Tienes ${n} preguntas por repasar.`),
+      howMany: 'Número de preguntas',
+      start: 'Repasar errores',
+    },
+  },
+
+  summary: {
+    title: 'Resumen',
+    help: 'Una guía de estudio de todo tu material, organizada por temas.',
+    generate: 'Generar resumen',
+    generating: 'Escribiendo el resumen…',
+    regenerate: 'Regenerar',
+    open: 'Leer el resumen',
+    /** The Summary screen's heading: "Resumen de Matemáticas". */
+    heading: (subject: string) => `Resumen de ${subject}`,
+    backToExam: (subject: string) => `Volver a ${subject}`,
+    outdated: 'Desactualizado: tu material o el idioma de la materia cambiaron desde que se hizo este resumen.',
+    needsReadPage: 'Agrega material y espera a que se lea al menos una página.',
+    /** Pages the Summary leaves out because they are unread or failed. */
+    notIncluded: (pages: number) =>
+      pages === 1 ? '1 página aún no se incluye.' : `${pages} páginas aún no se incluyen.`,
   },
 
   /** Practice Quizzes over time: In Progress ones to resume or discard, and the history of Submitted ones. */
@@ -306,6 +344,7 @@ export const strings = {
     /** One line per kind of data under an Exam. */
     examParts: {
       materials: (n: number) => (n === 1 ? '1 material' : `${n} materiales`),
+      summary: () => 'El resumen',
       explainers: (n: number) => (n === 1 ? '1 explicación' : `${n} explicaciones`),
       quizzes: (n: number) => (n === 1 ? '1 quiz' : `${n} quizzes`),
     } satisfies Record<ExamPartKind, (count: number) => string>,

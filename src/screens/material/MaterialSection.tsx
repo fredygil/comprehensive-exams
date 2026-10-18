@@ -4,7 +4,12 @@ import { Link } from 'react-router'
 import { useServices } from '../../app/services'
 import { ReadingPausedNotice } from '../../components/ReadingPaused'
 import { Section } from '../../components/Section'
-import { ACCEPTED_TYPES, UnsupportedFileError, materialFromFile } from '../../pageSplitter/pageSplitter'
+import {
+  ACCEPTED_TYPES,
+  UnreadablePdfError,
+  UnsupportedFileError,
+  materialFromFile,
+} from '../../pageSplitter/pageSplitter'
 import type { Exam, MaterialDraft } from '../../store/store'
 import { strings } from '../../strings'
 
@@ -21,16 +26,17 @@ export function MaterialSection({ exam }: { exam: Exam }) {
     // Let the same file be picked again later.
     event.target.value = ''
     const drafts: MaterialDraft[] = []
-    const unsupported: string[] = []
+    const problems: string[] = []
     for (const file of files) {
       try {
         drafts.push(await materialFromFile(file))
       } catch (error) {
-        if (!(error instanceof UnsupportedFileError)) throw error
-        unsupported.push(error.fileName)
+        if (error instanceof UnsupportedFileError) problems.push(text.unsupported(error.fileName))
+        else if (error instanceof UnreadablePdfError) problems.push(text.unreadablePdf(error.fileName))
+        else throw error
       }
     }
-    setRejected(unsupported)
+    setRejected(problems)
     if (drafts.length === 0) return
     await store.addMaterials(exam.id, drafts)
     readingQueue.start()
@@ -60,9 +66,9 @@ export function MaterialSection({ exam }: { exam: Exam }) {
         <p className="hint">{text.addHint}</p>
         {rejected.length > 0 && (
           <div role="alert">
-            {rejected.map((fileName) => (
-              <p key={fileName} className="error">
-                {text.unsupported(fileName)}
+            {rejected.map((problem) => (
+              <p key={problem} className="error">
+                {problem}
               </p>
             ))}
           </div>
