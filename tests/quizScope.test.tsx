@@ -106,6 +106,63 @@ describe('choosing the Materials a Practice Quiz covers', () => {
   })
 })
 
+describe('when some Pages in scope are not read', () => {
+  /** Unidad 1 has one read Page, one that fails and one still being read; Unidad 2 is read. */
+  function partlyRead() {
+    server.use(openRouter.readPage.inTurn([400, 'hang']))
+    return renderApp(
+      withMaterial([
+        { name: 'Unidad 1', pages: ['Las fracciones.'], unreadPages: 2 },
+        { name: 'Unidad 2', pages: ['Los decimales.'] },
+      ]),
+    )
+  }
+
+  it('warns how many Pages the quiz leaves out, and still generates from the read ones', async () => {
+    const app = await partlyRead()
+    await openExam(app)
+
+    const practice = await practiceSection()
+    expect(await practice.findByText('2 páginas aún no se incluyen.')).toBeInTheDocument()
+    server.use(openRouter.practiceQuiz.questions([question('¿Qué es una fracción?')]))
+    await startQuiz(app, 1)
+
+    const [prompt] = await quizPrompts()
+    expect(prompt).toContain('Las fracciones.')
+    expect(prompt).toContain('Los decimales.')
+  })
+
+  it('counts only the chosen Materials\' Pages', async () => {
+    const app = await partlyRead()
+    await openExam(app)
+
+    const practice = await practiceSection()
+    await practice.findByText('2 páginas aún no se incluyen.')
+    await app.user.click(practice.getByRole('checkbox', { name: 'Unidad 1' }))
+
+    expect(practice.queryByText(/aún no se incluye/)).not.toBeInTheDocument()
+    expect(practice.getByRole('button', { name: 'Practicar' })).toBeEnabled()
+  })
+
+  it('cannot start when none of the chosen Materials\' Pages is read', async () => {
+    server.use(openRouter.readPage.inTurn([400]))
+    const app = await renderApp(
+      withMaterial([
+        { name: 'Unidad 1', pages: [], unreadPages: 1 },
+        { name: 'Unidad 2', pages: ['Los decimales.'] },
+      ]),
+    )
+    await openExam(app)
+
+    const practice = await practiceSection()
+    await app.user.click(await practice.findByRole('checkbox', { name: 'Unidad 2' }))
+
+    expect(await practice.findByText('1 página aún no se incluye.')).toBeInTheDocument()
+    expect(practice.getByRole('button', { name: 'Practicar' })).toBeDisabled()
+    expect(practice.getByText('Los materiales elegidos aún no tienen páginas leídas.')).toBeInTheDocument()
+  })
+})
+
 describe('avoiding Questions already asked', () => {
   it('sends the prompts of the Exam\'s earlier Questions with a new quiz\'s request', async () => {
     server.use(
