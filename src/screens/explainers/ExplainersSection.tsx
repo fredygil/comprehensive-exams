@@ -71,41 +71,46 @@ export function ExplainersSection({ exam }: { exam: Exam }) {
             ))}
           </ul>
         )}
-        <p className="hint">{text.help}</p>
-        {hasKey === false && <NeedsKeyNotice />}
-        {scope?.readPages === 0 && <p className="hint">{text.needsReadPage}</p>}
-        <div className="row">
-          <button type="button" onClick={suggest} disabled={!ready || busy}>
-            {pending?.kind === 'topics' ? text.suggesting : text.suggest}
-          </button>
-        </div>
-        {topics && (
-          <div role="group" aria-label={text.suggested} className="row">
-            {topics.map((suggested) => (
-              <button key={suggested} type="button" onClick={() => explain(suggested)} disabled={!ready || busy}>
-                {suggested}
+        {/* Shown once loaded, so a button found enabled can be tapped. */}
+        {scope !== undefined && hasKey !== undefined && (
+          <>
+            <p className="hint">{text.help}</p>
+            {hasKey === false && <NeedsKeyNotice />}
+            {scope.readPages === 0 && <p className="hint">{text.needsReadPage}</p>}
+            <div className="row">
+              <button type="button" onClick={suggest} disabled={!ready || busy}>
+                {pending?.kind === 'topics' ? text.suggesting : text.suggest}
               </button>
-            ))}
-          </div>
-        )}
-        <form onSubmit={submit} className="row">
-          <label>
-            {text.topic}
-            <input
-              value={topic}
-              onChange={(event) => setTopic(event.target.value)}
-              placeholder={text.topicPlaceholder}
-            />
-          </label>
-          <button type="submit" disabled={!ready || busy || !topic.trim()}>
-            {text.create}
-          </button>
-        </form>
-        {pending?.kind === 'explainer' && <p role="status">{text.creating(pending.topic)}</p>}
-        {error && (
-          <p role="alert" className="error">
-            {error}
-          </p>
+            </div>
+            {topics && (
+              <div role="group" aria-label={text.suggested} className="row">
+                {topics.map((suggested) => (
+                  <button key={suggested} type="button" onClick={() => explain(suggested)} disabled={!ready || busy}>
+                    {suggested}
+                  </button>
+                ))}
+              </div>
+            )}
+            <form onSubmit={submit} className="row">
+              <label>
+                {text.topic}
+                <input
+                  value={topic}
+                  onChange={(event) => setTopic(event.target.value)}
+                  placeholder={text.topicPlaceholder}
+                />
+              </label>
+              <button type="submit" disabled={!ready || busy || !topic.trim()}>
+                {text.create}
+              </button>
+            </form>
+            {pending?.kind === 'explainer' && <p role="status">{text.creating(pending.topic)}</p>}
+            {error && (
+              <p role="alert" className="error">
+                {error}
+              </p>
+            )}
+          </>
         )}
       </div>
     </Section>

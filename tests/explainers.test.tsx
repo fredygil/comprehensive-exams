@@ -48,8 +48,11 @@ async function openExam(app: App, subject = 'Matemáticas') {
   await screen.findByRole('heading', { name: subject, level: 1 })
 }
 
+/** The Exam screen's "Explicaciones" section, once its actions have loaded. */
 async function explainers() {
-  return within(await screen.findByRole('region', { name: 'Explicaciones' }))
+  const section = within(await screen.findByRole('region', { name: 'Explicaciones' }))
+  await section.findByLabelText('Tema')
+  return section
 }
 
 /** The topics of the Explainers listed on the Exam screen, once loaded. */

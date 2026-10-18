@@ -44,7 +44,7 @@ async function startAllThree(app: App) {
   server.use(summary.handler, explainer.handler, quiz.handler)
 
   await app.user.click(await region('Resumen').findByRole('button', { name: 'Regenerar' }))
-  await app.user.type(region('Explicaciones').getByLabelText('Tema'), 'Fracciones impropias')
+  await app.user.type(await region('Explicaciones').findByLabelText('Tema'), 'Fracciones impropias')
   await app.user.click(region('Explicaciones').getByRole('button', { name: 'Crear explicación' }))
   await app.user.click(await region('Practicar').findByRole('button', { name: 'Practicar' }))
   await waitFor(() => expect(openRouterRequests).toHaveLength(3))
