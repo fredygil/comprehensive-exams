@@ -7,6 +7,7 @@ import { MaterialScreen } from '../screens/material/MaterialScreen'
 import { FirstRunScreen } from '../screens/FirstRunScreen'
 import { HomeScreen } from '../screens/HomeScreen'
 import { PeriodScreen } from '../screens/PeriodScreen'
+import { QuizScreen } from '../screens/quiz/QuizScreen'
 import { SettingsScreen } from '../screens/settings/SettingsScreen'
 import { SubjectsScreen } from '../screens/subjects/SubjectsScreen'
 import { Layout } from './Layout'
@@ -51,6 +52,7 @@ function Screens() {
         <Route path="examenes/nuevo" element={<NewExamScreen />} />
         <Route path="examenes/:examId" element={<ExamScreen />} />
         <Route path="examenes/:examId/material/:materialId" element={<MaterialScreen />} />
+        <Route path="examenes/:examId/quiz/:quizId" element={<QuizScreen />} />
         <Route path="periodos/:periodId" element={<PeriodScreen />} />
         <Route path="ajustes" element={<SettingsScreen student={student} />} />
         <Route path="*" element={<Navigate to="/" replace />} />

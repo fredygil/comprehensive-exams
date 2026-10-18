@@ -48,7 +48,10 @@ export function chatCompletion(content: string, choice: { finish_reason?: string
   }
 }
 
-type ChatBody = { messages?: { content?: unknown }[] }
+type ChatBody = {
+  messages?: { content?: unknown }[]
+  response_format?: { type?: string; json_schema?: { name?: string } }
+}
 
 /** Is this chat completion a Page being read (it carries the Page's image or file)? */
 function isReadPage(body: ChatBody) {
@@ -57,6 +60,22 @@ function isReadPage(body: ChatBody) {
       Array.isArray(message.content) &&
       message.content.some((part: { type?: string }) => part.type === 'image_url' || part.type === 'file'),
   )
+}
+
+/** Does this chat completion ask for JSON in the schema with this name (generateStructured)? */
+function asksForJson(schemaName: string) {
+  return (body: ChatBody) =>
+    body.response_format?.type === 'json_schema' && body.response_format.json_schema?.name === schemaName
+}
+
+/** A Question as the quiz model writes it (before the app shuffles its options). */
+export type ScriptedQuestion = {
+  prompt: string
+  options: string[]
+  correctIndex: number
+  explanation: string
+  /** The id of the Material it comes from, as a string; a fresh tablet numbers Materials 1, 2, ... in the order added. */
+  sourceMaterialId: string
 }
 
 /**
@@ -95,6 +114,22 @@ export const openRouter = {
       chatHandler(isReadPage, () => HttpResponse.json(chatCompletion('', { finish_reason: 'length' }))),
     /** The network is down (fetch rejects). */
     offline: () => chatHandler(isReadPage, () => HttpResponse.error()),
+  },
+
+  /** Practice Quiz generation: structured JSON in the 'practice_quiz' schema. */
+  practiceQuiz: {
+    /** The model writes these Questions. */
+    questions: (questions: ScriptedQuestion[]) =>
+      chatHandler(asksForJson('practice_quiz'), () =>
+        HttpResponse.json(chatCompletion(JSON.stringify({ questions }))),
+      ),
+    /** The model answers with this content as is (e.g. not JSON). */
+    content: (content: string) =>
+      chatHandler(asksForJson('practice_quiz'), () => HttpResponse.json(chatCompletion(content))),
+    status: (status: number, metadata?: Record<string, unknown>) =>
+      chatHandler(asksForJson('practice_quiz'), () => failure(status, `HTTP ${status}`, metadata)),
+    /** The network is down (fetch rejects). */
+    offline: () => chatHandler(asksForJson('practice_quiz'), () => HttpResponse.error()),
   },
 
   key: {

@@ -27,6 +27,20 @@ export type ReadPageRequest = {
   original: PageOriginal
 }
 
+/**
+ * The JSON a generateStructured call asks for: a strict JSON Schema sent to
+ * the model, and `parse`, which checks the parsed JSON and returns it typed.
+ * Keep `minItems`, `maximum` and the like out of `schema` (strict modes vary
+ * by provider) and check them in `parse`; throw from it to reject the answer.
+ */
+export type StructuredSchema<T> = {
+  /** Names the schema in the request, e.g. 'practice_quiz'. */
+  name: string
+  /** A JSON Schema; every object needs `required` (all keys) and `additionalProperties: false`. */
+  schema: Record<string, unknown>
+  parse: (json: unknown) => T
+}
+
 /** The assistant message of a chat completion that finished normally. */
 export type Completion = {
   /** Never empty. */
@@ -142,6 +156,29 @@ export function createModelGateway(options: ModelGatewayOptions) {
         ],
       })
       return content.trim()
+    },
+
+    /**
+     * Asks the job's model for JSON in `schema` (strict json_schema, only on
+     * providers that support it) and returns it parsed and checked. JSON that
+     * doesn't parse, or that `schema.parse` rejects, is BadResponse.
+     */
+    async generateStructured<T>(job: Job, prompt: string, schema: StructuredSchema<T>): Promise<T> {
+      const { content } = await complete(job, {
+        reasoning: { effort: 'low' },
+        messages: [{ role: 'user', content: prompt }],
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: schema.name, strict: true, schema: schema.schema },
+        },
+        provider: { require_parameters: true },
+      })
+      try {
+        return schema.parse(JSON.parse(content))
+      } catch (error) {
+        if (error instanceof GatewayError) throw error
+        throw new GatewayError('BadResponse', `not a valid ${schema.name}: ${String(error)}`)
+      }
     },
 
     /** Is the saved key accepted, and what is its spend limit? (GET /key) */

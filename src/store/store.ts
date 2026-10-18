@@ -125,13 +125,65 @@ export type MaterialDraft = {
   pages: PageOriginal[]
 }
 
+/** One multiple-choice item of a Practice Quiz: a prompt with four options, exactly one correct. */
+export type Question = {
+  id: number
+  examId: number
+  /** Markdown with math, like every model-written text. */
+  prompt: string
+  /** Always four, in the order shown (the app shuffled them). */
+  options: string[]
+  /** 0-based index into options. */
+  correctIndex: number
+  /** Why the correct option is right: the Feedback for a wrong answer. */
+  explanation: string
+  /** The Material it was drawn from; it may since have been deleted. */
+  sourceMaterialId: number
+  /** That Material's name when the Question was made, so Feedback keeps it. */
+  sourceMaterialName: string
+  /** Answered wrong in a submitted quiz and not answered right since in a Mistakes Quiz. */
+  isMistake: boolean
+}
+
+export type QuestionDraft = Omit<Question, 'id' | 'examId' | 'isMistake'>
+
+export type QuizKind = 'practice' | 'mistakes'
+
+/** In Progress → Submitted. */
+export type QuizState = 'inProgress' | 'submitted'
+
+/** One Question of a quiz and the Student's answer (null while unanswered). */
+export type QuizItem = { questionId: number; chosenIndex: number | null }
+
+/** A Practice Quiz (or Mistakes Quiz): its Questions, in order, with the Student's answers. */
+export type PracticeQuiz = {
+  id: number
+  examId: number
+  kind: QuizKind
+  state: QuizState
+  items: QuizItem[]
+  /** Questions answered correctly; null until Submitted. */
+  score: number | null
+  /** Some Questions may repeat earlier ones. */
+  mayRepeat: boolean
+  /** ms since the epoch. */
+  createdAt: number
+  submittedAt: number | null
+}
+
+/** A quiz with its Questions, in the quiz's order. */
+export type QuizWithQuestions = { quiz: PracticeQuiz; questions: Question[] }
+
+/** A Material's Recognized Text: its read Pages, in order. */
+export type MaterialText = { material: Material; pages: string[] }
+
 /**
  * The kinds of data stored under an Exam, which go when the Exam (or its
  * Subject) is deleted. Later tickets add theirs here ('summary',
  * 'explainers', 'quizzes', ...), with a line in `examParts` below and its
  * text in `strings.deletion.examParts`.
  */
-export type ExamPartKind = 'materials'
+export type ExamPartKind = 'materials' | 'quizzes'
 
 /** How much of one kind of data an Exam holds, e.g. { kind: 'materials', count: 3 }. */
 export type ExamPartCount = { kind: ExamPartKind; count: number }
@@ -159,6 +211,8 @@ class Database extends Dexie {
   // Kept apart from `pages` so listing Pages never loads their scans.
   // Bytes are stored as an ArrayBuffer: fake-indexeddb (tests) drops Blobs.
   pageOriginals!: EntityTable<PageOriginalRow, 'pageId'>
+  questions!: EntityTable<Question, 'id'>
+  quizzes!: EntityTable<PracticeQuiz, 'id'>
 
   constructor(name: string) {
     super(name)
@@ -172,6 +226,8 @@ class Database extends Dexie {
       materials: '++id, examId',
       pages: '++id, materialId, status',
       pageOriginals: 'pageId',
+      questions: '++id, examId',
+      quizzes: '++id, examId',
     })
   }
 }
@@ -205,6 +261,15 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
         await db.pageOriginals.bulkDelete(pageIds)
         await db.pages.bulkDelete(pageIds)
         await db.materials.bulkDelete(materialIds)
+      },
+    },
+    {
+      kind: 'quizzes',
+      tables: [db.quizzes, db.questions],
+      count: (examId) => db.quizzes.where('examId').equals(examId).count(),
+      delete: async (examIds) => {
+        await db.quizzes.where('examId').anyOf(examIds).delete()
+        await db.questions.where('examId').anyOf(examIds).delete()
       },
     },
   ]
@@ -462,6 +527,13 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       return (await db.materials.get(id)) ?? null
     },
 
+    /** Has at least one of the Exam's Pages been read? (Quizzes and Study Aids need one.) */
+    async examHasReadPages(examId: number): Promise<boolean> {
+      const materialIds = await db.materials.where('examId').equals(examId).primaryKeys()
+      const pages = await db.pages.where('materialId').anyOf(materialIds).toArray()
+      return pages.some((page) => page.status === 'read')
+    },
+
     /** A Material's Pages, in order. */
     async materialPages(materialId: number): Promise<Page[]> {
       const pages = await db.pages.where('materialId').equals(materialId).toArray()
@@ -505,6 +577,76 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     /** Pages left 'reading' when the app was closed go back to 'unread'. */
     async requeueInterruptedPages() {
       await db.pages.where('status').equals('reading').modify({ status: 'unread' })
+    },
+
+    /** The Recognized Text of an Exam's read Pages, per Material in the order added; Materials with none are left out. */
+    async examRecognizedText(examId: number): Promise<MaterialText[]> {
+      const materials = await db.materials.where('examId').equals(examId).toArray()
+      materials.sort((a, b) => a.addedAt - b.addedAt || a.id - b.id)
+      const texts: MaterialText[] = []
+      for (const material of materials) {
+        const pages = await db.pages.where('materialId').equals(material.id).toArray()
+        const read = pages
+          .filter((page) => page.status === 'read' && page.recognizedText)
+          .sort((a, b) => a.index - b.index)
+          .map((page) => page.recognizedText!)
+        if (read.length) texts.push({ material, pages: read })
+      }
+      return texts
+    },
+
+    // Practice Quizzes (the Quiz Maker and the Quiz Session).
+
+    /** Stores new Questions and an In Progress quiz of them, in that order. Returns the quiz id. */
+    async addPracticeQuiz(
+      examId: number,
+      questions: QuestionDraft[],
+      options: { mayRepeat: boolean },
+    ): Promise<number> {
+      return db.transaction('rw', [db.questions, db.quizzes], async () => {
+        const items: QuizItem[] = []
+        for (const question of questions) {
+          const questionId = await db.questions.add({ ...question, examId, isMistake: false })
+          items.push({ questionId, chosenIndex: null })
+        }
+        return db.quizzes.add({
+          examId,
+          kind: 'practice',
+          state: 'inProgress',
+          items,
+          score: null,
+          mayRepeat: options.mayRepeat,
+          createdAt: Date.now(),
+          submittedAt: null,
+        })
+      })
+    },
+
+    /** The quiz and its Questions, or null if there is none with that id (e.g. its Exam was deleted). */
+    async getQuiz(quizId: number): Promise<QuizWithQuestions | null> {
+      const quiz = await db.quizzes.get(quizId)
+      if (!quiz) return null
+      const questions = await db.questions.bulkGet(quiz.items.map((item) => item.questionId))
+      return { quiz, questions: questions.map((question) => question!) }
+    },
+
+    /** Records (or changes) the answer to the quiz's Question at `position`, while it is In Progress. */
+    async answerQuizQuestion(quizId: number, position: number, chosenIndex: number) {
+      await db.transaction('rw', db.quizzes, async () => {
+        const quiz = await db.quizzes.get(quizId)
+        if (!quiz || quiz.state !== 'inProgress' || !quiz.items[position]) return
+        const items = quiz.items.map((item, i) => (i === position ? { ...item, chosenIndex } : item))
+        await db.quizzes.update(quizId, { items })
+      })
+    },
+
+    /** Makes an In Progress quiz Submitted with its Score. */
+    async submitQuiz(quizId: number, score: number) {
+      await db.transaction('rw', db.quizzes, async () => {
+        const quiz = await db.quizzes.get(quizId)
+        if (!quiz || quiz.state !== 'inProgress') return
+        await db.quizzes.update(quizId, { state: 'submitted', score, submittedAt: Date.now() })
+      })
     },
 
     async close() {

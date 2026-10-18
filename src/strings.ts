@@ -158,6 +158,18 @@ export const strings = {
     },
   },
 
+  /** Practice Quizzes: starting one, answering it, and its Score and Feedback. */
+  quiz: {
+    section: 'Practicar',
+    count: 'Número de preguntas',
+    start: 'Practicar',
+    creating: 'Creando las preguntas…',
+    needsReadPages: 'Para practicar, primero agrega material y espera a que se lea al menos una página.',
+    title: 'Quiz de práctica',
+    /** "Pregunta 3 de 10" */
+    questionOf: (n: number, total: number) => `Pregunta ${n} de ${total}`,
+  },
+
   /** Delete confirmations: they name everything that will be lost. */
   deletion: {
     willLose: 'Se borrará para siempre:',
@@ -178,6 +190,7 @@ export const strings = {
     /** One line per kind of data under an Exam. */
     examParts: {
       materials: (n: number) => (n === 1 ? '1 material' : `${n} materiales`),
+      quizzes: (n: number) => (n === 1 ? '1 quiz' : `${n} quizzes`),
     } satisfies Record<ExamPartKind, (count: number) => string>,
   },
 
