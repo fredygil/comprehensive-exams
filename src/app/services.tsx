@@ -2,12 +2,14 @@
 // handed to <App>. Tests create them against a fake database (see
 // tests/harness/renderApp.tsx); main.tsx creates the real ones.
 import { createContext, useContext } from 'react'
+import { createBackup, type Backup } from '../backup/backup'
 import { createModelGateway, type ModelGateway } from '../gateway/gateway'
 import { createQuizMaker, type QuizMaker } from '../quizMaker/quizMaker'
 import { createQuizSession, type QuizSession } from '../quizSession/quizSession'
 import { createReadingQueue, type ReadingQueue } from '../readingQueue/readingQueue'
 import { createStore, type Store } from '../store/store'
 import { APP_TITLE, APP_URL } from './config'
+import { downloadFile } from './downloadFile'
 
 export type AppServices = {
   store: Store
@@ -18,12 +20,18 @@ export type AppServices = {
   quizMaker: QuizMaker
   /** Answers and submits Practice Quizzes. */
   quizSession: QuizSession
+  /** Exports everything to one file and imports it back. */
+  backup: Backup
+  /** Hands a file to the tablet to keep (a download), e.g. an exported backup. */
+  saveFile: (file: File) => void
 }
 
 export type AppServicesOptions = {
   dbName?: string
   /** How the Reading Queue waits before retrying a busy model (tests make it instant). */
   wait?: (ms: number) => Promise<void>
+  /** How a file is handed to the tablet; a download by default (tests keep the files). */
+  saveFile?: (file: File) => void
 }
 
 export function createAppServices(options: AppServicesOptions = {}): AppServices {
@@ -37,7 +45,9 @@ export function createAppServices(options: AppServicesOptions = {}): AppServices
   const readingQueue = createReadingQueue({ store, gateway, wait: options.wait })
   const quizMaker = createQuizMaker({ store, gateway })
   const quizSession = createQuizSession({ store })
-  return { store, gateway, readingQueue, quizMaker, quizSession }
+  const backup = createBackup({ store, readingQueue })
+  const saveFile = options.saveFile ?? downloadFile
+  return { store, gateway, readingQueue, quizMaker, quizSession, backup, saveFile }
 }
 
 export const ServicesContext = createContext<AppServices | null>(null)

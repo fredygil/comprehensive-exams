@@ -1,6 +1,7 @@
 // Every piece of UI text, in Spanish. Components never hard-code copy; they
 // read it from here, so an English UI later is a translation of this file.
 // Vocabulary follows GLOSSARY.md.
+import type { InvalidBackupReason } from './backup/errors.ts'
 import type { GatewayErrorKind } from './gateway/errors.ts'
 import type { Job } from './settings/models.ts'
 import type { ExamPartKind, Language, PeriodDraft, Quarter, QuizKind } from './store/store.ts'
@@ -73,6 +74,37 @@ export const strings = {
       saved: 'Modelos guardados.',
       reset: 'Usar los predeterminados',
     },
+  },
+
+  /** Exporting everything to one file, and importing it on this or another tablet. */
+  backup: {
+    title: 'Copia de seguridad',
+    help: 'Guarda todo en un archivo: materias, exámenes, material con sus escaneos, resúmenes, explicaciones, quizzes y ajustes. La clave de OpenRouter no se incluye.',
+    export: 'Exportar copia',
+    exporting: 'Preparando la copia…',
+    exported: (fileName: string) => `Copia lista: ${fileName}. Guárdala en Drive.`,
+    exportFailed: 'No se pudo preparar la copia. Inténtalo de nuevo.',
+    import: 'Importar copia',
+    importHelp: 'Elige una copia para restaurarla en esta tableta.',
+    firstRun: '¿Ya usabas la app en otra tableta? Restaura tu copia de seguridad.',
+    checking: 'Revisando el archivo…',
+    confirm: {
+      title: '¿Restaurar esta copia?',
+      /** The day it was exported, e.g. "18 de octubre de 2026". */
+      body: (exportedAt: number) =>
+        `La copia del ${new Date(exportedAt).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })} reemplazará todo lo que hay en esta tableta: materias, exámenes, material, resúmenes, explicaciones, quizzes y ajustes.`,
+      keepsKey: 'La clave de OpenRouter de esta tableta se mantiene.',
+      cannotUndo: 'Esto no se puede deshacer.',
+      confirm: 'Sí, restaurar',
+      cancel: 'Cancelar',
+    },
+    restoring: 'Restaurando la copia…',
+    restored: 'Copia restaurada.',
+    invalid: {
+      notABackup: 'Este archivo no es una copia de seguridad de Mis Exámenes.',
+      newerVersion: 'Esta copia es de una versión más nueva de la app. Actualiza la app e inténtalo de nuevo.',
+    } satisfies Record<InvalidBackupReason, string>,
+    failed: 'No se pudo restaurar la copia. Inténtalo de nuevo.',
   },
 
   languages: {

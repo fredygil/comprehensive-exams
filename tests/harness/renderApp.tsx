@@ -121,12 +121,17 @@ export async function renderApp(options: RenderAppOptions = {}) {
   Object.defineProperty(navigator, 'storage', { value: storage, configurable: true })
 
   let current: RunningApp | undefined
+  const savedFiles: File[] = []
 
   async function launch(seed?: (services: AppServices) => Promise<void>) {
     // Launching from the home screen always starts at the start URL.
     window.history.replaceState(null, '', '/')
     // Retries of a busy model happen at once, so tests don't sit through the backoff.
-    const services = createAppServices({ dbName, wait: async () => {} })
+    const services = createAppServices({
+      dbName,
+      wait: async () => {},
+      saveFile: (file) => savedFiles.push(file),
+    })
     await seed?.(services)
     const { unmount } = render(<App services={services} />)
     current = { services, unmount }
@@ -165,6 +170,17 @@ export async function renderApp(options: RenderAppOptions = {}) {
     get store(): Store {
       if (!current) throw new Error('app is not open')
       return current.services.store
+    },
+    /** Files the app handed to the tablet to save (downloads), in order, e.g. a backup. */
+    savedFiles,
+    /** Close the app for good, e.g. before picking up another tablet with renderApp(). */
+    async close() {
+      if (!current) throw new Error('app is not open')
+      const closing = current
+      running = running.filter((app) => app !== closing)
+      current = undefined
+      closing.unmount()
+      await closing.services.store.close()
     },
     /** Close the app and open it again on the same tablet. */
     async reopen() {

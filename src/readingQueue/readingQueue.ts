@@ -164,9 +164,14 @@ export function createReadingQueue({ store, gateway, wait = sleep }: ReadingQueu
       }
     },
 
-    /** Stops after the Page being read (the app is closing). */
-    stop() {
+    /**
+     * Stops after the Page being read (the app is closing, or a backup is
+     * about to replace every Page). Resolves once that Page's result is
+     * stored, so nothing is written after it.
+     */
+    async stop() {
       stopped = true
+      await running
     },
   }
 }

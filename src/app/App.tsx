@@ -32,7 +32,7 @@ export function App({ services }: { services: AppServices }) {
     window.addEventListener('online', resume)
     return () => {
       window.removeEventListener('online', resume)
-      readingQueue.stop()
+      void readingQueue.stop()
     }
   }, [services])
 
