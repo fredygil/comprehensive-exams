@@ -13,7 +13,7 @@ type Status =
   | { kind: 'failed'; message: string }
 
 export function KeySection({ savedKey }: { savedKey: string | null }) {
-  const { store, gateway } = useServices()
+  const { store, gateway, readingQueue } = useServices()
   const [key, setKey] = useState(savedKey ?? '')
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const text = strings.settings.key
@@ -22,11 +22,14 @@ export function KeySection({ savedKey }: { savedKey: string | null }) {
     event.preventDefault()
     await store.saveOpenRouterKey(key)
     setStatus({ kind: 'saved' })
+    // Pages waiting for a (working) key are read now.
+    readingQueue.start()
   }
 
   // "Probar clave" checks what is in the field, so it saves it first.
   async function check() {
     await store.saveOpenRouterKey(key)
+    readingQueue.start()
     setStatus({ kind: 'checking' })
     try {
       setStatus({ kind: 'checked', result: await gateway.checkKey() })

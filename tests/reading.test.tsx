@@ -149,3 +149,49 @@ describe('when the tablet is offline', () => {
     expect(material.queryByRole('alert')).not.toBeInTheDocument()
   })
 })
+
+describe('when the key is invalid or its credit has run out', () => {
+  it('pauses reading until a parent saves a working key in Settings', async () => {
+    server.use(openRouter.readPage.status(401))
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-old', subjects, exams: [{ subject: 'Matemáticas', period: q1 }] })
+    await openExam(app)
+
+    await app.user.upload(screen.getByLabelText('Agregar material'), photo('a.jpg'))
+    const material = within(screen.getByRole('region', { name: 'Material' }))
+    const paused = await material.findByRole('alert')
+    expect(paused).toHaveTextContent('La lectura de páginas está en pausa.')
+    expect(paused).toHaveTextContent('La clave de OpenRouter no es válida.')
+
+    server.use(openRouter.readPage.text('Texto de a.'))
+    await app.user.click(screen.getByRole('link', { name: 'Ajustes' }))
+    const key = await screen.findByLabelText('Clave')
+    await app.user.clear(key)
+    await app.user.type(key, 'sk-or-v1-new')
+    await app.user.click(screen.getByRole('button', { name: 'Guardar clave' }))
+    await screen.findByText('Clave guardada.')
+    await app.user.click(screen.getByRole('link', { name: 'Inicio' }))
+    await openExam(app)
+
+    expect(await within(await materialItem('a')).findByText('1 / 1 página')).toBeInTheDocument()
+    expect(readRequests().at(-1)!.headers.get('Authorization')).toBe('Bearer sk-or-v1-new')
+  })
+
+  it('pauses reading when credit runs out, and goes on when she taps "Reintentar"', async () => {
+    server.use(openRouter.readPage.status(402, { limit_source: 'openrouter_credits' }))
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [{ subject: 'Matemáticas', period: q1 }] })
+    await openExam(app)
+
+    await app.user.upload(screen.getByLabelText('Agregar material'), [photo('a.jpg'), photo('b.jpg')])
+    const material = within(screen.getByRole('region', { name: 'Material' }))
+    const paused = await material.findByRole('alert')
+    expect(paused).toHaveTextContent('Se acabó el saldo de la clave de OpenRouter.')
+    expect(readRequests()).toHaveLength(1)
+
+    server.use(openRouter.readPage.text('Texto.'))
+    await app.user.click(within(paused).getByRole('button', { name: 'Reintentar' }))
+
+    expect(await within(await materialItem('b')).findByText('1 / 1 página')).toBeInTheDocument()
+    expect(within(await materialItem('a')).getByText('1 / 1 página')).toBeInTheDocument()
+    expect(material.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})

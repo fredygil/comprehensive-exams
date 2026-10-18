@@ -237,7 +237,7 @@ describe('adding Material with no key saved', () => {
     await app.user.click(screen.getByRole('button', { name: 'Guardar clave' }))
     await screen.findByText('Clave guardada.')
 
-    await app.reopen()
+    await app.user.click(screen.getByRole('link', { name: 'Inicio' }))
     await openExam(app)
     await openMaterial(app, 'fracciones')
     expect(await screen.findByText('Texto leído después.')).toBeInTheDocument()
