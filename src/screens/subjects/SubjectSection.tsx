@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useServices } from '../../app/services'
-import { DeleteWithConfirmation, subjectConfirmation } from '../../components/DeleteWithConfirmation'
+import { subjectConfirmation } from '../../components/confirmations'
+import { DeleteWithConfirmation } from '../../components/DeleteWithConfirmation'
 import { LanguageSelect } from '../../components/LanguageSelect'
 import { Section } from '../../components/Section'
 import type { Subject } from '../../store/store'

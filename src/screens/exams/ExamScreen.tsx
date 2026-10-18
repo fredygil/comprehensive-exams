@@ -1,7 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { useServices } from '../../app/services'
-import { DeleteWithConfirmation, examConfirmation } from '../../components/DeleteWithConfirmation'
+import { examConfirmation } from '../../components/confirmations'
+import { DeleteWithConfirmation } from '../../components/DeleteWithConfirmation'
 import { strings } from '../../strings'
 import { ExamDateSection } from './ExamDateSection'
 
