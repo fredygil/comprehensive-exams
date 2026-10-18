@@ -156,6 +156,15 @@ export const strings = {
       name: 'Nombre',
       rename: 'Cambiar nombre',
     },
+    /** Reading progress: "12 / 30 páginas", plus "· 1 con error" when some failed. */
+    progress: ({ read, failed, total }: { read: number; failed: number; total: number }) =>
+      `${read} / ${total} ${total === 1 ? 'página' : 'páginas'}` +
+      (failed > 0 ? ` · ${failed} con error` : ''),
+    /** While the Reading Queue is paused (offline, invalid key, no credit). */
+    paused: {
+      message: 'La lectura de páginas está en pausa.',
+      retry: 'Reintentar',
+    },
     page: {
       /** The alt text of a Page's original scan: "Página 1: original". */
       original: (number: number) => `Página ${number}: original`,
@@ -167,6 +176,7 @@ export const strings = {
       save: 'Guardar texto',
       cancel: 'Cancelar',
       edited: 'Editado por ti.',
+      retry: 'Reintentar',
     },
   },
 

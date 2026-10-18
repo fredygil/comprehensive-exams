@@ -41,8 +41,10 @@ export type RenderAppOptions = {
 /**
  * A photo Material whose Pages have all been read: one Recognized Text
  * (Markdown) per Page, e.g. `{ name: 'Unidad 1', pages: ['# Fracciones ...'] }`.
+ * `unreadPages: n` adds n more Pages after those, still waiting to be read
+ * (the app reads them on launch).
  */
-export type SeededMaterial = { name: string; pages: string[] }
+export type SeededMaterial = { name: string; pages: string[]; unreadPages?: number }
 
 async function seedMaterial(store: Store, examId: number, material: SeededMaterial) {
   const bytes = new TextEncoder().encode(`photo bytes of ${material.name}`)
@@ -50,11 +52,14 @@ async function seedMaterial(store: Store, examId: number, material: SeededMateri
     {
       name: material.name,
       sourceFileName: `${material.name}.jpg`,
-      pages: material.pages.map(() => ({ bytes, mime: 'image/jpeg' as const })),
+      pages: Array.from({ length: material.pages.length + (material.unreadPages ?? 0) }, () => ({
+        bytes,
+        mime: 'image/jpeg' as const,
+      })),
     },
   ])
   const pages = await store.materialPages(materialId)
-  for (const [i, page] of pages.entries()) await store.markPageRead(page.id, material.pages[i])
+  for (const [i, text] of material.pages.entries()) await store.markPageRead(pages[i].id, text)
 }
 
 type RunningApp = { services: AppServices; unmount: () => void }
@@ -93,7 +98,8 @@ export async function renderApp(options: RenderAppOptions = {}) {
   async function launch(seed?: (services: AppServices) => Promise<void>) {
     // Launching from the home screen always starts at the start URL.
     window.history.replaceState(null, '', '/')
-    const services = createAppServices({ dbName })
+    // Retries of a busy model happen at once, so tests don't sit through the backoff.
+    const services = createAppServices({ dbName, wait: async () => {} })
     await seed?.(services)
     const { unmount } = render(<App services={services} />)
     current = { services, unmount }

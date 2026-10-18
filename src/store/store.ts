@@ -124,6 +124,17 @@ export type Page = {
   failure: GatewayErrorKind | null
 }
 
+/** How far reading a Material has got: Pages read and failed, out of all its Pages. */
+export type ReadingProgress = { read: number; failed: number; total: number }
+
+export function readingProgress(pages: Pick<Page, 'status'>[]): ReadingProgress {
+  return {
+    read: pages.filter((page) => page.status === 'read').length,
+    failed: pages.filter((page) => page.status === 'failed').length,
+    total: pages.length,
+  }
+}
+
 /** A Material to add: its name and its Pages' originals, in order. */
 export type MaterialDraft = {
   name: string
@@ -545,6 +556,15 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       })
     },
 
+    /** Reading progress of each of an Exam's Materials, by Material id. */
+    async examReadingProgress(examId: number): Promise<Map<number, ReadingProgress>> {
+      const materialIds = await db.materials.where('examId').equals(examId).primaryKeys()
+      const pages = await db.pages.where('materialId').anyOf(materialIds).toArray()
+      return new Map(
+        materialIds.map((id) => [id, readingProgress(pages.filter((page) => page.materialId === id))]),
+      )
+    },
+
     // Page reading (the Reading Queue). Each is a no-op if the Page is gone,
     // or if the Student has edited it: reading never overwrites her text.
 
@@ -573,7 +593,11 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
 
     /** Pages left 'reading' when the app was closed go back to 'unread'. */
     async requeueInterruptedPages() {
-      await db.pages.where('status').equals('reading').modify({ status: 'unread' })
+      await db.pages
+        .where('status')
+        .equals('reading')
+        .filter((page) => !page.editedByStudent)
+        .modify({ status: 'unread' })
     },
 
     async close() {
