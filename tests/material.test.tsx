@@ -259,7 +259,7 @@ describe('choosing a file that is not a photo', () => {
     ])
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'No se pudo agregar «notas.txt»: solo se pueden agregar fotos JPG o PNG.',
+      'No se pudo agregar «notas.txt»: solo se pueden agregar PDF o fotos JPG o PNG.',
     )
     const material = within(screen.getByRole('region', { name: 'Material' }))
     expect((await material.findAllByRole('link')).map((link) => link.textContent)).toEqual(['unidad 1'])

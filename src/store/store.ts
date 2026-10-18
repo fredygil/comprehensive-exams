@@ -92,7 +92,7 @@ export type Material = {
 }
 
 /** The kinds of file a Page's original can be. */
-export type PageMime = 'image/jpeg' | 'image/png'
+export type PageMime = 'image/jpeg' | 'image/png' | 'application/pdf'
 
 /** A Page's original scan: its bytes and their type. */
 export type PageOriginal = {
