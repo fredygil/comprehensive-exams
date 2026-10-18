@@ -245,6 +245,11 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     return row ? (await withSubjectAndPeriod([row]))[0] : null
   }
 
+  /** The Page, unless the Student has edited it (then reading must leave it alone). */
+  function readablePage(pageId: number) {
+    return db.pages.where('id').equals(pageId).filter((page) => !page.editedByStudent)
+  }
+
   async function getPage(id: number): Promise<Page | null> {
     return (await db.pages.get(id)) ?? null
   }
@@ -486,7 +491,8 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       await db.pages.update(pageId, { recognizedText, editedByStudent: true })
     },
 
-    // Page reading (the Reading Queue). Each is a no-op if the Page is gone.
+    // Page reading (the Reading Queue). Each is a no-op if the Page is gone,
+    // or if the Student has edited it: reading never overwrites her text.
 
     /** The next Page waiting to be read, oldest first; null when none is. */
     async nextUnreadPage(): Promise<Page | null> {
@@ -494,21 +500,21 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     },
 
     async markPageReading(pageId: number) {
-      await db.pages.update(pageId, { status: 'reading', failure: null })
+      await readablePage(pageId).modify({ status: 'reading', failure: null })
     },
 
     /** Stores what the reading model read on the Page. */
     async markPageRead(pageId: number, recognizedText: string) {
-      await db.pages.update(pageId, { status: 'read', recognizedText, failure: null })
+      await readablePage(pageId).modify({ status: 'read', recognizedText, failure: null })
     },
 
     async markPageFailed(pageId: number, failure: GatewayErrorKind) {
-      await db.pages.update(pageId, { status: 'failed', failure })
+      await readablePage(pageId).modify({ status: 'failed', failure })
     },
 
     /** Puts a Page back in line to be read. */
     async markPageUnread(pageId: number) {
-      await db.pages.update(pageId, { status: 'unread', failure: null })
+      await readablePage(pageId).modify({ status: 'unread', failure: null })
     },
 
     /** Pages left 'reading' when the app was closed go back to 'unread'. */
