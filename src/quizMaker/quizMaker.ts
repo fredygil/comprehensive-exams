@@ -13,7 +13,7 @@ export const MAX_QUESTIONS = 20
 export const OPTION_COUNT = 4
 
 /** A Question as the model writes it. */
-type GeneratedQuestion = {
+export type GeneratedQuestion = {
   prompt: string
   options: string[]
   correctIndex: number
@@ -21,7 +21,8 @@ type GeneratedQuestion = {
   sourceMaterialId: string
 }
 
-const QUIZ_SCHEMA: StructuredSchema<GeneratedQuestion[]> = {
+/** What the quiz model must answer with (also used by the live check). */
+export const QUIZ_SCHEMA: StructuredSchema<GeneratedQuestion[]> = {
   name: 'practice_quiz',
   schema: {
     type: 'object',
