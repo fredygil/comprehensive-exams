@@ -6,6 +6,7 @@ import { DeleteWithConfirmation } from '../../components/DeleteWithConfirmation'
 import { strings } from '../../strings'
 import { ExplainersSection } from '../explainers/ExplainersSection'
 import { MaterialSection } from '../material/MaterialSection'
+import { QuizSection } from '../quiz/QuizSection'
 import { ExamDateSection } from './ExamDateSection'
 
 /** The study space for one Exam. Later tickets add Material, Study Aids and quizzes here. */
@@ -28,6 +29,7 @@ export function ExamScreen() {
       <ExamDateSection exam={exam} />
       <MaterialSection exam={exam} />
       <ExplainersSection exam={exam} />
+      <QuizSection exam={exam} />
       <div>
         <DeleteWithConfirmation
           action={strings.deletion.exam.action}

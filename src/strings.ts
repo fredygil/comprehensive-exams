@@ -201,6 +201,33 @@ export const strings = {
       pages === 1 ? '1 página aún no se incluye.' : `${pages} páginas aún no se incluyen.`,
   },
 
+  /** Practice Quizzes: starting one, answering it, and its Score and Feedback. */
+  quiz: {
+    section: 'Practicar',
+    count: 'Número de preguntas',
+    start: 'Practicar',
+    creating: 'Creando las preguntas…',
+    needsReadPages: 'Para practicar, primero agrega material y espera a que se lea al menos una página.',
+    title: 'Quiz de práctica',
+    /** "Pregunta 3 de 10" */
+    questionOf: (n: number, total: number) => `Pregunta ${n} de ${total}`,
+    previous: 'Anterior',
+    next: 'Siguiente',
+    submit: 'Entregar',
+    results: {
+      title: 'Resultado',
+      /** "14 / 20" */
+      score: (score: number, total: number) => `${score} / ${total}`,
+      allRight: '¡Respondiste todo bien!',
+      wrong: 'Respuestas incorrectas',
+      question: (n: number) => `Pregunta ${n}`,
+      chosen: 'Tu respuesta:',
+      unanswered: 'Sin responder',
+      correct: 'Respuesta correcta:',
+      material: 'Material:',
+    },
+  },
+
   /** Delete confirmations: they name everything that will be lost. */
   deletion: {
     willLose: 'Se borrará para siempre:',
@@ -233,6 +260,7 @@ export const strings = {
     examParts: {
       materials: (n: number) => (n === 1 ? '1 material' : `${n} materiales`),
       explainers: (n: number) => (n === 1 ? '1 explicación' : `${n} explicaciones`),
+      quizzes: (n: number) => (n === 1 ? '1 quiz' : `${n} quizzes`),
     } satisfies Record<ExamPartKind, (count: number) => string>,
   },
 

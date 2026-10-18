@@ -38,15 +38,17 @@ export type Completion = {
 /**
  * The JSON a structured generation must answer with: a JSON Schema for the
  * model (strict mode: every object lists all its keys in `required` and has
- * `additionalProperties: false`; no min/max keywords) and a check the answer
- * must pass, since providers enforce the schema unevenly.
+ * `additionalProperties: false`) and `parse`, which checks the parsed answer
+ * and returns it typed, since providers enforce the schema unevenly. Keep
+ * `minItems`, `maximum` and the like out of `schema` (strict modes vary by
+ * provider) and check them in `parse`; throw from it to reject the answer.
  */
 export type StructuredSchema<T> = {
-  /** Names the schema in the request, e.g. 'topics'. */
+  /** Names the schema in the request, e.g. 'topics' or 'practice_quiz'. */
   name: string
   schema: Record<string, unknown>
-  /** Does the parsed answer have the shape and values the caller needs? */
-  isValid: (value: unknown) => value is T
+  /** Checks the parsed JSON and returns it typed; throws to reject it. */
+  parse: (json: unknown) => T
 }
 
 /** A web page an answer cites (message.annotations[].url_citation). */
@@ -177,9 +179,9 @@ export function createModelGateway(options: ModelGatewayOptions) {
     },
 
     /**
-     * Asks for JSON that fits `schema`: a strict json_schema response format,
-     * only from providers that support it. An answer that isn't JSON or
-     * fails `schema.isValid` is BadResponse.
+     * Asks the job's model for JSON that fits `schema` (strict json_schema,
+     * only from providers that support it) and returns it parsed and checked.
+     * An answer that isn't JSON, or that `schema.parse` rejects, is BadResponse.
      */
     async generateStructured<T>(prompt: string, schema: StructuredSchema<T>, job: Job): Promise<T> {
       const { content } = await complete(job, {
@@ -191,14 +193,18 @@ export function createModelGateway(options: ModelGatewayOptions) {
         },
         provider: { require_parameters: true },
       })
-      let value: unknown
+      let json: unknown
       try {
-        value = JSON.parse(content)
+        json = JSON.parse(content)
       } catch {
         throw new GatewayError('BadResponse', 'not JSON')
       }
-      if (!schema.isValid(value)) throw new GatewayError('BadResponse', `does not fit ${schema.name}`)
-      return value
+      try {
+        return schema.parse(json)
+      } catch (error) {
+        if (error instanceof GatewayError) throw error
+        throw new GatewayError('BadResponse', `not a valid ${schema.name}: ${String(error)}`)
+      }
     },
 
     /**
