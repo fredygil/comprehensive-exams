@@ -101,6 +101,31 @@ export const strings = {
   },
 
   exams: {
+    date: {
+      title: 'Fecha del examen',
+      label: 'Fecha del examen',
+      optionalLabel: 'Fecha del examen (opcional)',
+      save: 'Guardar fecha',
+      clear: 'Quitar fecha',
+      none: 'Sin fecha',
+      /** "Miércoles, 21 de octubre" for '2026-10-21'. */
+      day: (isoDate: string) => {
+        const [year, month, day] = isoDate.split('-').map(Number)
+        const text = new Date(year, month - 1, day).toLocaleDateString('es', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+        })
+        return text.charAt(0).toUpperCase() + text.slice(1)
+      },
+      /** Days from today until the Exam Date: 3 → "en 3 días", -2 → "hace 2 días". */
+      countdown: (days: number) => {
+        if (days === 0) return 'hoy'
+        if (days === 1) return 'mañana'
+        if (days === -1) return 'ayer'
+        return days > 0 ? `en ${days} días` : `hace ${-days} días`
+      },
+    },
     new: {
       title: 'Nuevo examen',
       subject: 'Materia',

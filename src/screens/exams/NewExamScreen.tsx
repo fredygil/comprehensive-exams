@@ -41,6 +41,7 @@ function NewExamForm({ subjects, periods }: { subjects: Subject[]; periods: Peri
   const [periodChoice, setPeriodChoice] = useState(String(periods[0]?.id ?? NEW_PERIOD))
   const [schoolYearStart, setSchoolYearStart] = useState(() => schoolYearOf(new Date()))
   const [quarter, setQuarter] = useState<Quarter>(1)
+  const [examDate, setExamDate] = useState('')
   const [duplicateOf, setDuplicateOf] = useState<string | null>(null)
   const [schoolYears] = useState(() => {
     const current = schoolYearOf(new Date())
@@ -54,7 +55,7 @@ function NewExamForm({ subjects, periods }: { subjects: Subject[]; periods: Peri
     event.preventDefault()
     const period = creatingPeriod ? { schoolYearStart, quarter } : chosenPeriod!
     try {
-      const id = await store.createExam({ subjectId: Number(subjectId), period, examDate: null })
+      const id = await store.createExam({ subjectId: Number(subjectId), period, examDate: examDate || null })
       navigate(`/examenes/${id}`)
     } catch (error) {
       if (!(error instanceof DuplicateExamError)) throw error
@@ -115,6 +116,10 @@ function NewExamForm({ subjects, periods }: { subjects: Subject[]; periods: Peri
           </label>
         </div>
       )}
+      <label>
+        {strings.exams.date.optionalLabel}
+        <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
+      </label>
       <div className="row">
         <button type="submit" disabled={!subjectId}>
           {text.create}

@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Navigate, useParams } from 'react-router'
 import { useServices } from '../../app/services'
 import { strings } from '../../strings'
+import { ExamDateSection } from './ExamDateSection'
 
 /** The study space for one Exam. Later tickets add Material, Study Aids and quizzes here. */
 export function ExamScreen() {
@@ -19,6 +20,7 @@ export function ExamScreen() {
         <h1>{exam.subject.name}</h1>
         <p className="hint">{strings.periods.label(exam.period)}</p>
       </header>
+      <ExamDateSection exam={exam} />
     </main>
   )
 }

@@ -243,6 +243,11 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
 
     periodExams,
 
+    /** Sets, changes or (with null) clears the Exam Date. */
+    async setExamDate(examId: number, examDate: IsoDate | null) {
+      await db.exams.update(examId, { examDate })
+    },
+
     /** The current Period and its Exams, soonest first; null before the first Exam. */
     async currentPeriodExams(): Promise<{ period: Period; exams: Exam[] } | null> {
       const period = await currentPeriod()

@@ -25,6 +25,101 @@ function region(name: string) {
   return within(screen.getByRole('region', { name }))
 }
 
+const q1 = { schoolYearStart: 2026, quarter: 1 as const }
+
+describe('the Exam Date', () => {
+  it('can be set when the Exam is created, with a countdown on the home screen', async () => {
+    setClock('2026-10-18T09:00')
+    const app = await renderApp({ student: ana, subjects })
+    await openNewExam(app)
+
+    await app.user.selectOptions(screen.getByLabelText('Materia'), 'Matemáticas')
+    await app.user.type(screen.getByLabelText('Fecha del examen (opcional)'), '2026-10-21')
+    await app.user.click(screen.getByRole('button', { name: 'Crear examen' }))
+
+    expect(await screen.findByText('Miércoles, 21 de octubre · en 3 días')).toBeInTheDocument()
+
+    await goHome(app)
+    expect(region('2026–2027 · Q1').getByRole('link', { name: /Matemáticas/ })).toHaveTextContent(
+      /en 3 días/,
+    )
+  })
+
+  it('can be changed and cleared on the Exam screen, kept across launches', async () => {
+    setClock('2026-10-18T09:00')
+    const app = await renderApp({
+      student: ana,
+      subjects,
+      exams: [{ subject: 'Matemáticas', period: q1, examDate: '2026-10-21' }],
+    })
+    await app.user.click(await screen.findByRole('link', { name: /Matemáticas/ }))
+    await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+
+    const date = region('Fecha del examen')
+    await app.user.clear(date.getByLabelText('Fecha del examen'))
+    await app.user.type(date.getByLabelText('Fecha del examen'), '2026-10-19')
+    await app.user.click(date.getByRole('button', { name: 'Guardar fecha' }))
+    expect(await screen.findByText('Lunes, 19 de octubre · mañana')).toBeInTheDocument()
+
+    await app.reopen()
+    await app.user.click(await screen.findByRole('link', { name: /Matemáticas/ }))
+    await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+    expect(screen.getByText('Lunes, 19 de octubre · mañana')).toBeInTheDocument()
+
+    await app.user.click(region('Fecha del examen').getByRole('button', { name: 'Quitar fecha' }))
+    expect(await screen.findByText('Sin fecha')).toBeInTheDocument()
+    expect(region('Fecha del examen').getByLabelText('Fecha del examen')).toHaveValue('')
+
+    await app.reopen()
+    await app.user.click(await screen.findByRole('link', { name: /Matemáticas/ }))
+    await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+    expect(screen.getByText('Sin fecha')).toBeInTheDocument()
+  })
+})
+
+describe('the home screen', () => {
+  it("lists the current Period's Exams soonest first, undated last, counting down from today", async () => {
+    setClock('2026-10-18T09:00')
+    await renderApp({
+      student: ana,
+      subjects: [...subjects, { name: 'Historia', language: 'es' }, { name: 'Arte', language: 'es' }],
+      exams: [
+        { subject: 'Arte', period: q1 },
+        { subject: 'Science', period: q1, examDate: '2026-10-25' },
+        { subject: 'Matemáticas', period: q1, examDate: '2026-10-18' },
+        { subject: 'Historia', period: q1, examDate: '2026-10-19' },
+      ],
+    })
+    await screen.findByRole('heading', { name: /Ana/, level: 1 })
+
+    const items = region('2026–2027 · Q1').getAllByRole('listitem')
+    expect(items.map((item) => item.textContent)).toEqual([
+      'MatemáticasDomingo, 18 de octubre · hoy',
+      'HistoriaLunes, 19 de octubre · mañana',
+      'ScienceDomingo, 25 de octubre · en 7 días',
+      'ArteSin fecha',
+    ])
+  })
+
+  it('counts down again as the days go by', async () => {
+    setClock('2026-10-18T09:00')
+    const app = await renderApp({
+      student: ana,
+      subjects,
+      exams: [{ subject: 'Science', period: q1, examDate: '2026-10-25' }],
+    })
+    expect(await screen.findByText(/en 7 días/)).toBeInTheDocument()
+
+    setClock('2026-10-24T20:00')
+    await app.reopen()
+    expect(await screen.findByText(/mañana/)).toBeInTheDocument()
+
+    setClock('2026-10-27T08:00')
+    await app.reopen()
+    expect(await screen.findByText(/hace 2 días/)).toBeInTheDocument()
+  })
+})
+
 describe('creating an Exam', () => {
   it('creates the first Exam in a new Period, shown on the home screen', async () => {
     setClock('2026-10-18T09:00')
