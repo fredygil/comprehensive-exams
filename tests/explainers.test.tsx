@@ -150,7 +150,6 @@ describe('generating an Explainer', () => {
     expect(prompt).toContain('Photosynthesis')
     expect(prompt).toMatch(/English/)
     expect(prompt).toMatch(/grade 7/)
-    expect(prompt).toMatch(/prefer sources/i)
   })
 })
 

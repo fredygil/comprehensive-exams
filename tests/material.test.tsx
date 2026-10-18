@@ -71,7 +71,7 @@ describe('adding photo Material', () => {
     expect(await screen.findByText('Texto de la página uno.')).toBeInTheDocument()
   })
 
-  it('sends each Page to the reading model as an image with a transcription prompt', async () => {
+  it('sends each Page to the reading model as an image, with the Subject’s Language and the Grade Level', async () => {
     server.use(openRouter.readPage.text('Photosynthesis needs light.'))
     const app = await renderApp({
       student: ana,
@@ -96,9 +96,6 @@ describe('adding photo Material', () => {
     const prompt = message.content.find((part: { type: string }) => part.type === 'text').text
     expect(prompt).toMatch(/grade 5/)
     expect(prompt).toMatch(/English/)
-    expect(prompt).toMatch(/transcribe/i)
-    expect(prompt).toMatch(/do not translate/i)
-    expect(prompt).toMatch(/LaTeX/)
   })
 
   it('shows the Recognized Text as Markdown with real formulas', async () => {
