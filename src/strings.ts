@@ -3,11 +3,14 @@
 // Vocabulary follows GLOSSARY.md.
 import type { GatewayErrorKind } from './gateway/errors.ts'
 import type { Job } from './settings/models.ts'
-import type { Language } from './store/store.ts'
+import type { Language, PeriodDraft, Quarter } from './store/store.ts'
 
 function formatUsd(usd: number) {
   return `$${usd.toFixed(2)}`
 }
+
+const schoolYear = (start: number) => `${start}–${start + 1}`
+const quarter = (q: Quarter) => `Q${q}`
 
 export const strings = {
   app: {
@@ -90,6 +93,30 @@ export const strings = {
     empty: 'Aún no tienes materias.',
   },
 
+  periods: {
+    schoolYear,
+    quarter,
+    /** "2026–2027 · Q1" */
+    label: (period: PeriodDraft) => `${schoolYear(period.schoolYearStart)} · ${quarter(period.quarter)}`,
+  },
+
+  exams: {
+    new: {
+      title: 'Nuevo examen',
+      subject: 'Materia',
+      chooseSubject: 'Elige la materia',
+      noSubjects: 'Primero crea una materia.',
+      createSubject: 'Crear una materia',
+      period: 'Periodo',
+      newPeriod: 'Nuevo periodo…',
+      schoolYear: 'Año escolar',
+      quarter: 'Trimestre',
+      create: 'Crear examen',
+      duplicate: (subject: string, period: string) =>
+        `Ya tienes un examen de ${subject} en ${period}. Solo puede haber uno por materia y periodo.`,
+    },
+  },
+
   needsKey: {
     message:
       'Configura la clave de OpenRouter en Ajustes para usar las funciones con IA (leer páginas, resúmenes, quizzes y explicaciones).',
@@ -113,5 +140,8 @@ export const strings = {
       if (hour >= 12 && hour < 19) return `Buenas tardes, ${name}`
       return `Buenas noches, ${name}`
     },
+    newExam: 'Nuevo examen',
+    noExams: 'Aún no tienes exámenes. Crea el primero.',
+    noExamsInPeriod: 'Este periodo aún no tiene exámenes.',
   },
 }

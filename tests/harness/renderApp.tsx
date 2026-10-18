@@ -13,7 +13,7 @@ import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { App } from '../../src/app/App'
 import { createAppServices, type AppServices } from '../../src/app/services'
-import type { Student } from '../../src/store/store'
+import type { IsoDate, PeriodDraft, Student, SubjectDraft } from '../../src/store/store'
 
 export type RenderAppOptions = {
   /**
@@ -23,6 +23,13 @@ export type RenderAppOptions = {
    */
   student?: Student
   openRouterKey?: string
+  /** Subjects that already exist, e.g. `[{ name: 'Matemáticas', language: 'es' }]`. */
+  subjects?: SubjectDraft[]
+  /**
+   * Exams that already exist, naming one of `subjects`; their Periods are
+   * created as needed. E.g. `[{ subject: 'Matemáticas', period: { schoolYearStart: 2026, quarter: 1 } }]`.
+   */
+  exams?: { subject: string; period: PeriodDraft; examDate?: IsoDate }[]
 }
 
 type RunningApp = { services: AppServices; unmount: () => void }
@@ -71,6 +78,15 @@ export async function renderApp(options: RenderAppOptions = {}) {
   await launch(async ({ store }) => {
     if (options.student) await store.saveStudent(options.student)
     if (options.openRouterKey) await store.saveOpenRouterKey(options.openRouterKey)
+    const subjectIds = new Map<string, number>()
+    for (const subject of options.subjects ?? []) {
+      subjectIds.set(subject.name, await store.createSubject(subject))
+    }
+    for (const exam of options.exams ?? []) {
+      const subjectId = subjectIds.get(exam.subject)
+      if (subjectId === undefined) throw new Error(`renderApp: no Subject named ${exam.subject}`)
+      await store.createExam({ subjectId, period: exam.period, examDate: exam.examDate ?? null })
+    }
   })
 
   return {
