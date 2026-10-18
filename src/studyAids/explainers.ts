@@ -5,6 +5,7 @@
 // the web and stores the Explainer with its sources.
 import type { ModelGateway, StructuredSchema } from '../gateway/gateway'
 import type { PromptContext } from '../prompts/context'
+import { explainerPrompt } from '../prompts/explainer'
 import { suggestTopicsPrompt, type MaterialText } from '../prompts/suggestTopics'
 import type { Exam, Store } from '../store/store'
 
@@ -65,4 +66,18 @@ export async function suggestTopics({ store, gateway }: StudyAidServices, exam: 
     'summary',
   )
   return [...new Set(topics.map((topic) => topic.trim()).filter(Boolean))]
+}
+
+/**
+ * Researches the topic on the web and stores the Explainer (Markdown and the
+ * sources it cites) under the Exam. Returns its id.
+ */
+export async function generateExplainer(
+  { store, gateway }: StudyAidServices,
+  exam: Exam,
+  topic: string,
+): Promise<number> {
+  const context = await promptContext(store, exam)
+  const answer = await gateway.generateWithWebSearch(explainerPrompt(context, exam.subject.name, topic))
+  return store.addExplainer(exam.id, { topic, markdown: answer.markdown, sources: answer.citations })
 }

@@ -49,6 +49,24 @@ export type StructuredSchema<T> = {
   isValid: (value: unknown) => value is T
 }
 
+/** A web page an answer cites (message.annotations[].url_citation). */
+export type Citation = { url: string; title: string }
+
+/** An answer written from web search results. */
+export type WebSearchAnswer = {
+  markdown: string
+  /** Each cited URL once, in the order first cited. */
+  citations: Citation[]
+}
+
+// The web search server tool (Beta): OpenRouter runs the searches and returns
+// the final answer with url_citation annotations. Kept here, in one place, in
+// case the Beta request shape changes.
+const WEB_SEARCH_TOOL = {
+  type: 'openrouter:web_search',
+  parameters: { max_results: 5, max_total_results: 10 },
+}
+
 type ChatMessage = { role: 'user' | 'system'; content: string | ContentPart[] }
 
 type ContentPart =
@@ -183,6 +201,20 @@ export function createModelGateway(options: ModelGatewayOptions) {
       return value
     },
 
+    /**
+     * Asks the explainer model for an answer researched with the
+     * openrouter:web_search server tool. Citations come from the answer's
+     * url_citation annotations (other kinds are ignored).
+     */
+    async generateWithWebSearch(prompt: string): Promise<WebSearchAnswer> {
+      const { content, annotations } = await complete('explainer', {
+        reasoning: { effort: 'low' },
+        messages: [{ role: 'user', content: prompt }],
+        tools: [WEB_SEARCH_TOOL],
+      })
+      return { markdown: content.trim(), citations: urlCitations(annotations) }
+    },
+
     /** Is the saved key accepted, and what is its spend limit? (GET /key) */
     async checkKey(): Promise<KeyCheck> {
       let body: unknown
@@ -206,3 +238,19 @@ export function createModelGateway(options: ModelGatewayOptions) {
 }
 
 export type ModelGateway = ReturnType<typeof createModelGateway>
+
+/**
+ * The url_citation annotations as Citations: each URL once, untitled ones
+ * titled by their URL. Only http(s) URLs are kept, since they become links.
+ */
+function urlCitations(annotations: unknown[]): Citation[] {
+  const citations = new Map<string, Citation>()
+  for (const annotation of annotations) {
+    const citation = annotation as { type?: unknown; url_citation?: { url?: unknown; title?: unknown } } | null
+    if (citation?.type !== 'url_citation') continue
+    const { url, title } = citation.url_citation ?? {}
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url) || citations.has(url)) continue
+    citations.set(url, { url, title: typeof title === 'string' && title.trim() ? title.trim() : url })
+  }
+  return [...citations.values()]
+}

@@ -164,6 +164,13 @@ export const strings = {
     suggest: 'Sugerir temas',
     suggesting: 'Buscando temas…',
     suggested: 'Temas sugeridos',
+    topic: 'Tema',
+    topicPlaceholder: 'Escribe un tema, p. ej. «fracciones equivalentes»',
+    create: 'Crear explicación',
+    creating: (topic: string) => `Escribiendo la explicación de «${topic}»…`,
+    sources: 'Fuentes',
+    noSources: 'El modelo no citó fuentes para esta explicación.',
+    backToExam: (subject: string) => `Volver a ${subject}`,
   },
 
   /** Delete confirmations: they name everything that will be lost. */
@@ -186,6 +193,7 @@ export const strings = {
     /** One line per kind of data under an Exam. */
     examParts: {
       materials: (n: number) => (n === 1 ? '1 material' : `${n} materiales`),
+      explainers: (n: number) => (n === 1 ? '1 explicación' : `${n} explicaciones`),
     } satisfies Record<ExamPartKind, (count: number) => string>,
   },
 
