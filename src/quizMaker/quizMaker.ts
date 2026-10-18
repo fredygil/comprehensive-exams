@@ -9,7 +9,7 @@
 // is a repeat, and its quiz is flagged mayRepeat.
 import { GatewayError } from '../gateway/errors'
 import type { ModelGateway, StructuredSchema } from '../gateway/gateway'
-import { withReadPages } from '../prompts/context'
+import { promptContext, withReadPages } from '../prompts/context'
 import { practiceQuizPrompt } from '../prompts/practiceQuiz'
 import type { Material, QuestionDraft, Store } from '../store/store'
 
@@ -105,7 +105,7 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
       )
 
       const prompt = practiceQuizPrompt(
-        { language: exam.subject.language, gradeLevel: student.gradeLevel },
+        promptContext(exam, student),
         {
           count,
           materials: sources,

@@ -5,7 +5,7 @@
 // Language it was built with, so the Store can tell when it is Outdated.
 import type { StructuredSchema } from '../gateway/gateway'
 import { summaryPrompt } from '../prompts/summary'
-import { promptContext, type StudyAidServices } from './examText'
+import { studyAidContext, type StudyAidServices } from './context'
 
 type SummaryTopics = { topics: { title: string; content: string }[] }
 
@@ -55,7 +55,7 @@ export async function generateSummary({ store, gateway }: StudyAidServices, exam
   const startedIn = store.epoch()
   const exam = await store.getExam(examId)
   if (!exam) throw new Error(`generateSummary: no Exam ${examId}`)
-  const context = await promptContext(store, exam)
+  const context = await studyAidContext(store, exam)
   const text = await store.examText(examId)
   const topics = await gateway.generateStructured(
     summaryPrompt(context, exam.subject.name, text.materials),

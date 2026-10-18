@@ -4,13 +4,18 @@
 // (a PromptContext). Each prompt lives in its own file next to this one
 // (readPage.ts, ...) and builds on the shared pieces below. Prompts are in
 // English, which models follow best; they name the Language to write in.
-import type { GradeLevel, Language, Material, PageText } from '../store/store'
+import type { Exam, GradeLevel, Language, Material, PageText, Student } from '../store/store'
 
 export type PromptContext = {
   /** The Subject's Language. */
   language: Language
   /** The Student's Grade Level. */
   gradeLevel: GradeLevel
+}
+
+/** The context of every prompt about an Exam: its Subject's Language and the Student's Grade Level. */
+export function promptContext(exam: Pick<Exam, 'subject'>, student: Pick<Student, 'gradeLevel'>): PromptContext {
+  return { language: exam.subject.language, gradeLevel: student.gradeLevel }
 }
 
 /**
