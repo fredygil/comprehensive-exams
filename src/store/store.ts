@@ -185,6 +185,10 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
   // the tables it touches (so deletes run in one transaction), counts what an
   // Exam holds for the confirmation, and deletes it for a set of Exams.
   //
+  // Keep each `delete` flat: await Dexie calls directly, not another async
+  // helper. Inside a transaction Dexie only follows native `await` one async
+  // function deep; deeper, the transaction commits early (PrematureCommitError).
+  //
   const examParts: {
     kind: ExamPartKind
     tables: Table[]
@@ -197,7 +201,10 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       count: (examId) => db.materials.where('examId').equals(examId).count(),
       delete: async (examIds) => {
         const materialIds = await db.materials.where('examId').anyOf(examIds).primaryKeys()
-        await deleteMaterialsWithPages(materialIds)
+        const pageIds = await db.pages.where('materialId').anyOf(materialIds).primaryKeys()
+        await db.pageOriginals.bulkDelete(pageIds)
+        await db.pages.bulkDelete(pageIds)
+        await db.materials.bulkDelete(materialIds)
       },
     },
   ]
@@ -214,14 +221,6 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
   async function deleteExamsWithParts(examIds: number[]) {
     for (const part of examParts) await part.delete(examIds)
     await db.exams.bulkDelete(examIds)
-  }
-
-  /** Deletes Materials, their Pages and originals; call inside a transaction over those tables. */
-  async function deleteMaterialsWithPages(materialIds: number[]) {
-    const pageIds = await db.pages.where('materialId').anyOf(materialIds).primaryKeys()
-    await db.pageOriginals.bulkDelete(pageIds)
-    await db.pages.bulkDelete(pageIds)
-    await db.materials.bulkDelete(materialIds)
   }
 
   async function readSettings(): Promise<StoredSettings> {

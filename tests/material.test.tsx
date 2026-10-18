@@ -1,4 +1,5 @@
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { dataUrlOf, photo } from './harness/files'
 import { OPENROUTER, openRouter, openRouterRequests, server } from './harness/openRouter'
@@ -41,7 +42,7 @@ describe('adding photo Material', () => {
     await app.user.upload(screen.getByLabelText('Agregar material'), photo('fracciones.jpg'))
     await openMaterial(app, 'fracciones')
 
-    expect(screen.getByRole('img', { name: 'Página 1: original' })).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: 'Página 1: original' })).toHaveAttribute('src')
     const text = screen.getByRole('region', { name: 'Texto reconocido' })
     expect(
       await within(text).findByText('Las fracciones tienen numerador y denominador.'),
@@ -127,5 +128,111 @@ describe('adding photo Material', () => {
     expect(formulas(text)).toEqual(['A = b \\cdot h', '\\frac{3}{4} + \\frac{1}{4} = 1', 'x^2'])
     expect(text.querySelector('.katex-display')).not.toBeNull()
     expect(text).not.toHaveTextContent('$')
+  })
+})
+
+describe('when a Page cannot be read', () => {
+  const invalidKey = 'La clave de OpenRouter no es válida. Pídele a un adulto que la revise en Ajustes.'
+  const noCredit = 'Se acabó el saldo de la clave de OpenRouter. Pídele a un adulto que lo recargue.'
+  const offline = 'No hay conexión a internet. Conéctate e inténtalo de nuevo.'
+  const busy = 'El modelo está ocupado. Espera un momento e inténtalo de nuevo.'
+  const unavailable = 'El servicio no está disponible ahora. Inténtalo de nuevo en un rato.'
+  const badResponse = 'La respuesta del modelo no se pudo usar. Inténtalo de nuevo.'
+
+  it.each([
+    ['the key is invalid (401)', openRouter.readPage.status(401), invalidKey],
+    ['credit has run out (402)', openRouter.readPage.status(402, { limit_source: 'openrouter_credits' }), noCredit],
+    ['the key limit is spent (403)', openRouter.readPage.status(403, { limit_source: 'openrouter_key_limit' }), noCredit],
+    ['the tablet is offline', openRouter.readPage.offline(), offline],
+    ['the model is busy (429)', openRouter.readPage.status(429), busy],
+    ['the provider is down (503)', openRouter.readPage.status(503), unavailable],
+    ['the answer was cut off', openRouter.readPage.cutOff(), badResponse],
+    ['the request is rejected (400)', openRouter.readPage.status(400), badResponse],
+  ])('says so in Spanish when %s', async (_, failure, message) => {
+    server.use(failure)
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
+    await openExam(app)
+
+    await app.user.upload(screen.getByLabelText('Agregar material'), photo('fracciones.jpg'))
+    await openMaterial(app, 'fracciones')
+
+    const text = within(screen.getByRole('region', { name: 'Texto reconocido' }))
+    expect(await text.findByRole('alert')).toHaveTextContent(message)
+  })
+})
+
+describe('after reading', () => {
+  it('shows the Material and its Recognized Text offline, after reopening the app', async () => {
+    server.use(openRouter.readPage.text('Los números primos solo se dividen entre 1 y sí mismos.'))
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
+    await openExam(app)
+    await app.user.upload(screen.getByLabelText('Agregar material'), photo('primos.jpg'))
+    await openMaterial(app, 'primos')
+    await screen.findByText('Los números primos solo se dividen entre 1 y sí mismos.')
+    const sent = openRouterRequests.length
+
+    server.use(openRouter.readPage.offline(), openRouter.key.offline())
+    await app.reopen()
+    await openExam(app)
+    await openMaterial(app, 'primos')
+
+    expect(await screen.findByRole('img', { name: 'Página 1: original' })).toHaveAttribute('src')
+    expect(
+      await screen.findByText('Los números primos solo se dividen entre 1 y sí mismos.'),
+    ).toBeInTheDocument()
+    expect(openRouterRequests).toHaveLength(sent)
+  })
+})
+
+describe('deleting an Exam with Material', () => {
+  it('names the Material in the confirmation and deletes it with the Exam', async () => {
+    server.use(openRouter.readPage.text('Texto.'))
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
+    await openExam(app)
+    await app.user.upload(screen.getByLabelText('Agregar material'), [photo('a.jpg'), photo('b.jpg')])
+    const material = within(screen.getByRole('region', { name: 'Material' }))
+    await material.findByRole('link', { name: 'b' })
+
+    await app.user.click(screen.getByRole('button', { name: 'Eliminar examen' }))
+    const confirm = within(await screen.findByRole('alertdialog', { name: '¿Eliminar este examen?' }))
+    expect(confirm.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'El examen de Matemáticas de 2026–2027 · Q1',
+      '2 materiales',
+    ])
+    await app.user.click(confirm.getByRole('button', { name: 'Sí, eliminar' }))
+    await screen.findByRole('heading', { name: /Ana/, level: 1 })
+
+    // A new Exam for the same Subject and Period starts empty.
+    await app.user.click(screen.getByRole('link', { name: 'Nuevo examen' }))
+    await app.user.selectOptions(await screen.findByLabelText('Materia'), 'Matemáticas')
+    await app.user.click(screen.getByRole('button', { name: 'Crear examen' }))
+    await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+    expect(
+      await within(screen.getByRole('region', { name: 'Material' })).findByText(
+        'Aún no hay material para este examen.',
+      ),
+    ).toBeInTheDocument()
+  })
+})
+
+describe('choosing a file that is not a photo', () => {
+  it('says which file could not be added and adds the rest', async () => {
+    server.use(openRouter.readPage.text('Texto.'))
+    await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
+    // The Android picker doesn't always honour `accept`.
+    const user = userEvent.setup({ applyAccept: false })
+    await user.click(await screen.findByRole('link', { name: /Matemáticas/ }))
+    await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+
+    await user.upload(screen.getByLabelText('Agregar material'), [
+      new File(['hola'], 'notas.txt', { type: 'text/plain' }),
+      photo('unidad 1.jpg'),
+    ])
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No se pudo agregar «notas.txt»: solo se pueden agregar fotos JPG o PNG.',
+    )
+    const material = within(screen.getByRole('region', { name: 'Material' }))
+    expect((await material.findAllByRole('link')).map((link) => link.textContent)).toEqual(['unidad 1'])
   })
 })

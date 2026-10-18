@@ -16,5 +16,6 @@ export function PageViewer({ page, alt }: { page: Page; alt: string }) {
     return () => URL.revokeObjectURL(objectUrl)
   }, [original])
 
-  return <img className="page-image" src={url ?? undefined} alt={alt} />
+  // Shown once the scan is loaded, so an image on screen is always the real one.
+  return url ? <img className="page-image" src={url} alt={alt} /> : null
 }
