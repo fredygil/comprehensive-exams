@@ -1,6 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Link, Navigate, useParams } from 'react-router'
+import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import { useServices } from '../../app/services'
+import { explainerConfirmation } from '../../components/confirmations'
+import { DeleteWithConfirmation } from '../../components/DeleteWithConfirmation'
 import { RichText } from '../../components/RichText'
 import { Section } from '../../components/Section'
 import { strings } from '../../strings'
@@ -8,6 +10,7 @@ import { strings } from '../../strings'
 /** One Explainer: its text and the web sources it was written from. Works offline. */
 export function ExplainerScreen() {
   const { store } = useServices()
+  const navigate = useNavigate()
   const params = useParams()
   const examId = Number(params.examId)
   const explainerId = Number(params.explainerId)
@@ -47,6 +50,19 @@ export function ExplainerScreen() {
           </ol>
         )}
       </Section>
+      <div>
+        <DeleteWithConfirmation
+          action={strings.deletion.explainer.action}
+          load={async () => {
+            const current = await store.getExplainer(explainer.id)
+            return current && explainerConfirmation(current)
+          }}
+          onDelete={async () => {
+            await store.deleteExplainer(explainer.id)
+            navigate(`/examenes/${exam.id}`, { replace: true })
+          }}
+        />
+      </div>
     </main>
   )
 }

@@ -35,6 +35,11 @@ const equivalentFractions = [
 const wikipedia = urlCitation('https://es.wikipedia.org/wiki/Fracci%C3%B3n', 'Fracción - Wikipedia')
 const khan = urlCitation('https://es.khanacademy.org/math/fracciones', 'Fracciones equivalentes | Khan Academy')
 
+const twoExplainers = [
+  { topic: 'Fracciones equivalentes', markdown: equivalentFractions, sources: [] },
+  { topic: 'Suma de fracciones', markdown: 'Se suman los numeradores.', sources: [] },
+]
+
 type App = Awaited<ReturnType<typeof renderApp>>
 
 async function openExam(app: App, subject = 'Matemáticas') {
@@ -136,5 +141,118 @@ describe('generating an Explainer', () => {
     expect(prompt).toMatch(/English/)
     expect(prompt).toMatch(/grade 7/)
     expect(prompt).toMatch(/prefer sources/i)
+  })
+})
+
+describe('keeping Explainers', () => {
+  it('keeps any number of Explainers on the Exam, readable offline after a restart', async () => {
+    server.use(
+      openRouter.webSearch.answers([
+        { markdown: equivalentFractions, annotations: [wikipedia] },
+        { markdown: 'Para sumar fracciones con igual denominador se suman los numeradores.', annotations: [khan] },
+      ]),
+    )
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
+    await openExam(app)
+
+    for (const topic of ['Fracciones equivalentes', 'Suma de fracciones']) {
+      const section = await explainers()
+      await app.user.type(section.getByLabelText('Tema'), topic)
+      await app.user.click(section.getByRole('button', { name: 'Crear explicación' }))
+      await screen.findByRole('heading', { name: topic, level: 1 })
+      await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+    }
+
+    expect((await (await explainers()).findAllByRole('link')).map((link) => link.textContent)).toEqual([
+      'Suma de fracciones',
+      'Fracciones equivalentes',
+    ])
+
+    await app.reopen()
+    server.use(openRouter.webSearch.offline(), openRouter.structured.offline())
+    await openExam(app)
+    await app.user.click(await (await explainers()).findByRole('link', { name: 'Fracciones equivalentes' }))
+
+    await screen.findByRole('heading', { name: 'Fracciones equivalentes', level: 1 })
+    expect(formulas(screen.getByRole('article'))).toEqual(['\\frac{1}{2} = \\frac{2}{4}'])
+    expect(within(screen.getByRole('region', { name: 'Fuentes' })).getByRole('link')).toHaveTextContent(
+      'Fracción - Wikipedia',
+    )
+    expect(await chatBodies()).toHaveLength(2)
+  })
+
+  it('deletes an Explainer after confirmation', async () => {
+    const app = await renderApp({
+      student: ana,
+      subjects,
+      exams: [{ ...mathExam, explainers: twoExplainers }],
+    })
+    await openExam(app)
+    await app.user.click(await (await explainers()).findByRole('link', { name: 'Fracciones equivalentes' }))
+    await screen.findByRole('heading', { name: 'Fracciones equivalentes', level: 1 })
+
+    await app.user.click(screen.getByRole('button', { name: 'Eliminar explicación' }))
+    const confirm = within(await screen.findByRole('alertdialog', { name: '¿Eliminar esta explicación?' }))
+    expect(confirm.getByRole('listitem')).toHaveTextContent('La explicación «Fracciones equivalentes»')
+    await app.user.click(confirm.getByRole('button', { name: 'Cancelar' }))
+    expect(screen.getByRole('heading', { name: 'Fracciones equivalentes', level: 1 })).toBeInTheDocument()
+
+    await app.user.click(screen.getByRole('button', { name: 'Eliminar explicación' }))
+    await app.user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Sí, eliminar' }),
+    )
+
+    await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+    const remaining = async () => (await (await explainers()).findAllByRole('link')).map((l) => l.textContent)
+    expect(await remaining()).toEqual(['Suma de fracciones'])
+
+    await app.reopen()
+    await openExam(app)
+    expect(await remaining()).toEqual(['Suma de fracciones'])
+  })
+})
+
+describe('deleting an Exam with Explainers', () => {
+  it('names them in the confirmation and deletes them with the Exam', async () => {
+    const app = await renderApp({
+      student: ana,
+      subjects,
+      exams: [{ ...mathExam, explainers: twoExplainers }],
+    })
+    await openExam(app)
+
+    await app.user.click(screen.getByRole('button', { name: 'Eliminar examen' }))
+    const confirm = within(await screen.findByRole('alertdialog', { name: '¿Eliminar este examen?' }))
+    expect(confirm.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'El examen de Matemáticas de 2026–2027 · Q1',
+      '1 material',
+      '2 explicaciones',
+    ])
+    await app.user.click(confirm.getByRole('button', { name: 'Sí, eliminar' }))
+    await screen.findByRole('heading', { name: /Ana/, level: 1 })
+
+    // A new Exam for the same Subject and Period starts with no Explainers.
+    await app.user.click(screen.getByRole('link', { name: 'Nuevo examen' }))
+    await app.user.selectOptions(await screen.findByLabelText('Materia'), 'Matemáticas')
+    await app.user.click(screen.getByRole('button', { name: 'Crear examen' }))
+    await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+    expect((await explainers()).queryAllByRole('link')).toEqual([])
+  })
+
+  it('names them when deleting the Subject', async () => {
+    const app = await renderApp({
+      student: ana,
+      subjects,
+      exams: [{ subject: 'Matemáticas', period: q1, explainers: twoExplainers.slice(0, 1) }],
+    })
+    await app.user.click(await screen.findByRole('link', { name: 'Materias' }))
+    const subject = within(await screen.findByRole('region', { name: 'Matemáticas' }))
+    await app.user.click(subject.getByRole('button', { name: 'Eliminar materia' }))
+
+    const confirm = within(await screen.findByRole('alertdialog'))
+    expect(confirm.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'La materia Matemáticas',
+      'El examen de Matemáticas de 2026–2027 · Q1: 1 explicación',
+    ])
   })
 })

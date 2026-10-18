@@ -184,6 +184,11 @@ export const strings = {
       title: '¿Eliminar este examen?',
       item: (subject: string, period: string) => `El examen de ${subject} de ${period}`,
     },
+    explainer: {
+      action: 'Eliminar explicación',
+      title: '¿Eliminar esta explicación?',
+      item: (topic: string) => `La explicación «${topic}»`,
+    },
     subject: {
       action: 'Eliminar materia',
       title: (subject: string) => `¿Eliminar la materia ${subject}?`,

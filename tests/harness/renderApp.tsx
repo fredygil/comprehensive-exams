@@ -13,7 +13,14 @@ import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { App } from '../../src/app/App'
 import { createAppServices, type AppServices } from '../../src/app/services'
-import type { IsoDate, PeriodDraft, Store, Student, SubjectDraft } from '../../src/store/store'
+import type {
+  ExplainerDraft,
+  IsoDate,
+  PeriodDraft,
+  Store,
+  Student,
+  SubjectDraft,
+} from '../../src/store/store'
 
 export type RenderAppOptions = {
   /**
@@ -35,6 +42,8 @@ export type RenderAppOptions = {
     examDate?: IsoDate
     /** Material already added and read, in order. */
     materials?: SeededMaterial[]
+    /** Explainers already generated, e.g. `[{ topic, markdown, sources: [{ url, title }] }]`. */
+    explainers?: ExplainerDraft[]
   }[]
 }
 
@@ -116,6 +125,7 @@ export async function renderApp(options: RenderAppOptions = {}) {
         examDate: exam.examDate ?? null,
       })
       for (const material of exam.materials ?? []) await seedMaterial(store, examId, material)
+      for (const explainer of exam.explainers ?? []) await store.addExplainer(examId, explainer)
     }
   })
 
