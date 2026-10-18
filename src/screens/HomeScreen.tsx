@@ -12,10 +12,11 @@ export function HomeScreen({ student }: { student: Student }) {
   const { store } = useServices()
   const hasKey = useHasKey()
   const current = useLiveQuery(() => store.currentPeriodExams(), [store])
+  const earlier = useLiveQuery(() => store.earlierPeriods(), [store])
   const [hour] = useState(() => new Date().getHours())
 
   // Render the screen whole once loaded, so its heading means it is ready.
-  if (hasKey === undefined || current === undefined) return null
+  if (hasKey === undefined || current === undefined || earlier === undefined) return null
 
   return (
     <main className="screen">
@@ -37,6 +38,17 @@ export function HomeScreen({ student }: { student: Student }) {
           {strings.home.newExam}
         </Link>
       </div>
+      {earlier.length > 0 && (
+        <Section title={strings.home.earlierPeriods}>
+          <ul className="period-list">
+            {earlier.map((period) => (
+              <li key={period.id}>
+                <Link to={`/periodos/${period.id}`}>{strings.periods.label(period)}</Link>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
     </main>
   )
 }

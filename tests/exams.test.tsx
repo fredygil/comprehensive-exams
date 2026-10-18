@@ -120,6 +120,46 @@ describe('the home screen', () => {
   })
 })
 
+describe('earlier Periods', () => {
+  it('can be browsed from the home screen, newest first, with their Exams', async () => {
+    const app = await renderApp({
+      student: ana,
+      subjects,
+      exams: [
+        { subject: 'Matemáticas', period: { schoolYearStart: 2025, quarter: 3 } },
+        { subject: 'Science', period: { schoolYearStart: 2025, quarter: 4 }, examDate: '2026-06-02' },
+        { subject: 'Matemáticas', period: { schoolYearStart: 2025, quarter: 4 } },
+        { subject: 'Matemáticas', period: q1 },
+      ],
+    })
+    await screen.findByRole('heading', { name: /Ana/, level: 1 })
+
+    const earlier = region('Periodos anteriores')
+    expect(earlier.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      '2025–2026 · Q4',
+      '2025–2026 · Q3',
+    ])
+
+    await app.user.click(earlier.getByRole('link', { name: '2025–2026 · Q4' }))
+    expect(await screen.findByRole('heading', { name: '2025–2026 · Q4', level: 1 })).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      expect.stringMatching(/^Science/),
+      'MatemáticasSin fecha',
+    ])
+
+    await app.user.click(screen.getByRole('link', { name: /Science/ }))
+    expect(await screen.findByRole('heading', { name: 'Science', level: 1 })).toBeInTheDocument()
+    expect(screen.getByText('2025–2026 · Q4')).toBeInTheDocument()
+  })
+
+  it('are not offered while there is only one Period', async () => {
+    await renderApp({ student: ana, subjects, exams: [{ subject: 'Matemáticas', period: q1 }] })
+    await screen.findByRole('heading', { name: /Ana/, level: 1 })
+
+    expect(screen.queryByRole('region', { name: 'Periodos anteriores' })).not.toBeInTheDocument()
+  })
+})
+
 describe('creating an Exam', () => {
   it('creates the first Exam in a new Period, shown on the home screen', async () => {
     setClock('2026-10-18T09:00')

@@ -214,6 +214,15 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     listPeriods,
     currentPeriod,
 
+    /** Every Period before the current one, newest first. */
+    async earlierPeriods(): Promise<Period[]> {
+      return (await listPeriods()).slice(1)
+    },
+
+    async getPeriod(id: number): Promise<Period | null> {
+      return (await db.periods.get(id)) ?? null
+    },
+
     /**
      * Creates an Exam, and its Period if needed. Only one Exam per Subject
      * and Period: a second one throws DuplicateExamError.

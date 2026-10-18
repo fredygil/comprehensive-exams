@@ -168,5 +168,6 @@ export const strings = {
     newExam: 'Nuevo examen',
     noExams: 'Aún no tienes exámenes. Crea el primero.',
     noExamsInPeriod: 'Este periodo aún no tiene exámenes.',
+    earlierPeriods: 'Periodos anteriores',
   },
 }
