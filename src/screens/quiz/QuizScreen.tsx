@@ -28,6 +28,7 @@ export function QuizScreen() {
         <Link to={`/examenes/${exam.id}`}>{strings.material.backToExam(exam.subject.name)}</Link>
         <h1>{strings.quiz.kinds[quiz.kind]}</h1>
       </header>
+      {quiz.mayRepeat && <p className="notice">{strings.quiz.mayRepeat}</p>}
       {quiz.state === 'inProgress' ? (
         <QuizQuestions quiz={quiz} questions={questions} />
       ) : (

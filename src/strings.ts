@@ -217,6 +217,15 @@ export const strings = {
     start: 'Practicar',
     creating: 'Creando las preguntas…',
     needsReadPages: 'Para practicar, primero agrega material y espera a que se lea al menos una página.',
+    /** The Material picker: which Materials the quiz covers (all by default). */
+    materials: 'Material del quiz',
+    needsMaterial: 'Elige al menos un material.',
+    needsReadChosen: 'Los materiales elegidos aún no tienen páginas leídas.',
+    /** Pages in the quiz's scope it leaves out because they are unread or failed. */
+    notIncluded: (pages: number) =>
+      pages === 1 ? '1 página aún no se incluye.' : `${pages} páginas aún no se incluyen.`,
+    /** The Material has run out of new Questions, so the quiz repeats some earlier ones. */
+    mayRepeat: 'Algunas preguntas pueden repetirse: tu material ya no tiene suficientes preguntas nuevas.',
     title: 'Quiz de práctica',
     /** "Pregunta 3 de 10" */
     questionOf: (n: number, total: number) => `Pregunta ${n} de ${total}`,

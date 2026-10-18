@@ -790,6 +790,12 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       return texts
     },
 
+    /** The prompts of every Question asked so far on the Exam, oldest first (new quizzes avoid them). */
+    async examQuestionPrompts(examId: number): Promise<string[]> {
+      const questions = await db.questions.where('examId').equals(examId).sortBy('id')
+      return questions.map((question) => question.prompt)
+    },
+
     // Practice Quizzes (the Quiz Maker and the Quiz Session).
 
     /** Stores new Questions and an In Progress quiz of them, in that order. Returns the quiz id. */
