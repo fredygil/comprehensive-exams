@@ -17,6 +17,8 @@ export function InProgressQuizzes({ exam }: { exam: Exam }) {
       {quizzes.map((quiz) => (
         <li key={quiz.id}>
           <span>
+            {strings.quiz.kinds[quiz.kind]}
+            {' · '}
             {text.inProgress.started(text.when(quiz.createdAt))}
             {' · '}
             {text.answered(quiz.items.filter((item) => item.chosenIndex !== null).length, quiz.items.length)}

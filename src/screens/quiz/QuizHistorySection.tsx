@@ -6,8 +6,8 @@ import type { Exam } from '../../store/store'
 import { strings } from '../../strings'
 
 /**
- * "Historial": every Submitted quiz on the Exam, newest first, each opening
- * its review. Submitted quizzes are kept for good, so there is no delete.
+ * "Historial": every Submitted quiz on the Exam (Practice and Mistakes
+ * Quizzes, labelled by kind), newest first, each opening its review. Submitted quizzes are kept for good, so there is no delete.
  */
 export function QuizHistorySection({ exam }: { exam: Exam }) {
   const { store } = useServices()
@@ -22,6 +22,8 @@ export function QuizHistorySection({ exam }: { exam: Exam }) {
           {quizzes.map((quiz) => (
             <li key={quiz.id}>
               <span>
+                {strings.quiz.kinds[quiz.kind]}
+                {' · '}
                 <Link to={`/examenes/${exam.id}/quiz/${quiz.id}`}>{strings.quizzes.when(quiz.submittedAt!)}</Link>
                 {' · '}
                 {text.questions(quiz.items.length)}

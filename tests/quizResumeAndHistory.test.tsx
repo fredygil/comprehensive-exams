@@ -75,7 +75,7 @@ describe('leaving a quiz halfway', () => {
 
     const inProgress = within(await (await practiceSection()).findByRole('list', { name: 'Quizzes en curso' }))
     const [item] = inProgress.getAllByRole('listitem')
-    expect(item).toHaveTextContent('18 de octubre de 2026, 9:05')
+    expect(item).toHaveTextContent('Quiz de práctica · Empezado el 18 de octubre de 2026, 9:05')
     expect(item).toHaveTextContent('2 de 3 respondidas')
     await app.user.click(within(item).getByRole('link', { name: 'Continuar' }))
 
@@ -195,10 +195,33 @@ describe('the history of Submitted quizzes', () => {
     const history = await historySection()
     const list = within(await history.findByRole('list', { name: 'Quizzes entregados' }))
     expect(list.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
-      '19 de octubre de 2026, 16:30 · 3 preguntas · 3 / 3',
-      '18 de octubre de 2026, 9:10 · 2 preguntas · 1 / 2',
+      'Quiz de práctica · 19 de octubre de 2026, 16:30 · 3 preguntas · 3 / 3',
+      'Quiz de práctica · 18 de octubre de 2026, 9:10 · 2 preguntas · 1 / 2',
     ])
     expect(history.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('labels a Mistakes Quiz as one', async () => {
+    server.use(openRouter.practiceQuiz.questions(questions(2)))
+    const app = await renderApp(withMaterial())
+    await openExam(app)
+    await takeQuiz(app, ['Correcta 1', 'Incorrecta 2a'], { start: '2026-10-18T09:00', submit: '2026-10-18T09:10' })
+
+    setClock('2026-10-18T11:00')
+    const mistakes = within(await screen.findByRole('region', { name: 'Quiz de errores' }))
+    await app.user.click(mistakes.getByRole('button', { name: 'Repasar errores' }))
+    await screen.findByRole('heading', { name: 'Pregunta 1 de 1' })
+    await choose(app, 'Correcta 2')
+    await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+    await screen.findByRole('heading', { name: 'Resultado' })
+    await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+
+    const list = within(await (await historySection()).findByRole('list', { name: 'Quizzes entregados' }))
+    await waitFor(() => expect(list.getAllByRole('listitem')).toHaveLength(2))
+    expect(list.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'Quiz de errores · 18 de octubre de 2026, 11:00 · 1 pregunta · 1 / 1',
+      'Quiz de práctica · 18 de octubre de 2026, 9:10 · 2 preguntas · 1 / 2',
+    ])
   })
 })
 
