@@ -3,10 +3,10 @@
 export type GatewayErrorKind =
   | 'NoKey' // no key saved in Settings; nothing was sent
   | 'InvalidKey' // 401
-  | 'NoCredit' // 402
+  | 'NoCredit' // 402, or 403 from a spent cap
   | 'Offline' // the request never reached OpenRouter
-  | 'RateLimited' // 429, retryable
-  | 'Unavailable' // 408 / 5xx, retryable
+  | 'RateLimited' // 408 / 429, or 402 from the in-flight budget; retryable
+  | 'Unavailable' // 5xx, retryable
   | 'BadResponse' // anything else, or a response we can't understand
 
 const RETRYABLE: ReadonlySet<GatewayErrorKind> = new Set(['RateLimited', 'Unavailable', 'Offline'])
