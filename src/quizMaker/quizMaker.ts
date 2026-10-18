@@ -94,6 +94,7 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
       const sources = (await store.examRecognizedText(examId)).filter(
         ({ material }) => !materialIds || materialIds.includes(material.id),
       )
+      const earlierPrompts = await store.examQuestionPrompts(examId)
       const materials = new Map<string, Material>(
         sources.map(({ material }) => [String(material.id), material]),
       )
@@ -103,6 +104,7 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
         {
           count,
           materials: sources.map(({ material, pages }) => ({ id: String(material.id), pages })),
+          earlierPrompts: unique(earlierPrompts),
         },
       )
       const generated = await gateway.generateStructured(prompt, QUIZ_SCHEMA, 'practiceQuiz')
@@ -155,6 +157,31 @@ function placeCorrectOption(
     option.trim(),
   )
   return { options, correctIndex: position }
+}
+
+/**
+ * A Question's prompt as compared to find repeats: letter case, accents,
+ * punctuation and spacing don't count ("¿Qué es una fracción?" matches
+ * "que es una fraccion").
+ */
+function normalizedPrompt(prompt: string): string {
+  return prompt
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+/** The prompts without repeats (the first of each is kept). */
+function unique(prompts: string[]): string[] {
+  const seen = new Set<string>()
+  return prompts.filter((prompt) => {
+    const key = normalizedPrompt(prompt)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 /** Fisher–Yates. */

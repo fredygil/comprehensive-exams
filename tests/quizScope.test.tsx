@@ -105,3 +105,23 @@ describe('choosing the Materials a Practice Quiz covers', () => {
     expect(practice.getByText('Elige al menos un material.')).toBeInTheDocument()
   })
 })
+
+describe('avoiding Questions already asked', () => {
+  it('sends the prompts of the Exam\'s earlier Questions with a new quiz\'s request', async () => {
+    server.use(
+      openRouter.practiceQuiz.questions([question('¿Qué es una fracción?'), question('¿Qué es un decimal?', '2')]),
+    )
+    const app = await renderApp(twoUnits)
+    await openExam(app)
+    await startQuiz(app, 2)
+    await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+
+    server.use(openRouter.practiceQuiz.questions([question('¿Cuánto es 1/2 + 1/4?')]))
+    await startQuiz(app, 1)
+
+    const [first, second] = await quizPrompts()
+    expect(first).not.toContain('¿Qué es una fracción?')
+    expect(second).toContain('¿Qué es una fracción?')
+    expect(second).toContain('¿Qué es un decimal?')
+  })
+})
