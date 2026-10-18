@@ -354,3 +354,15 @@ button.danger-outline {
     top: 1rem;
   }
 }
+
+/* An Explainer's sources: numbered links, each on its own line. */
+.source-list {
+  margin: 0;
+  padding-left: 1.5rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.source-list a {
+  overflow-wrap: anywhere;
+}

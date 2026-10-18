@@ -142,13 +142,31 @@ export type MaterialDraft = {
   pages: PageOriginal[]
 }
 
+/** A web page an Explainer was written from. */
+export type Source = { url: string; title: string }
+
+/** A deeper, web-sourced explanation of one topic of an Exam. */
+export type Explainer = {
+  id: number
+  examId: number
+  topic: string
+  /** Markdown with LaTeX math. */
+  markdown: string
+  /** The web pages it cites, in order, each once. */
+  sources: Source[]
+  /** When it was generated (ms since the epoch). */
+  createdAt: number
+}
+
+export type ExplainerDraft = Pick<Explainer, 'topic' | 'markdown' | 'sources'>
+
 /**
  * The kinds of data stored under an Exam, which go when the Exam (or its
  * Subject) is deleted. Later tickets add theirs here ('summary',
  * 'explainers', 'quizzes', ...), with a line in `examParts` below and its
  * text in `strings.deletion.examParts`.
  */
-export type ExamPartKind = 'materials'
+export type ExamPartKind = 'materials' | 'explainers'
 
 /** How much of one kind of data an Exam holds, e.g. { kind: 'materials', count: 3 }. */
 export type ExamPartCount = { kind: ExamPartKind; count: number }
@@ -179,6 +197,7 @@ class Database extends Dexie {
   // Kept apart from `pages` so listing Pages never loads their scans.
   // Bytes are stored as an ArrayBuffer: fake-indexeddb (tests) drops Blobs.
   pageOriginals!: EntityTable<PageOriginalRow, 'pageId'>
+  explainers!: EntityTable<Explainer, 'id'>
 
   constructor(name: string) {
     super(name)
@@ -192,6 +211,7 @@ class Database extends Dexie {
       materials: '++id, examId',
       pages: '++id, materialId, status',
       pageOriginals: 'pageId',
+      explainers: '++id, examId',
     })
   }
 }
@@ -225,6 +245,14 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
         await db.pageOriginals.bulkDelete(pageIds)
         await db.pages.bulkDelete(pageIds)
         await db.materials.bulkDelete(materialIds)
+      },
+    },
+    {
+      kind: 'explainers',
+      tables: [db.explainers],
+      count: (examId) => db.explainers.where('examId').equals(examId).count(),
+      delete: async (examIds) => {
+        await db.explainers.where('examId').anyOf(examIds).delete()
       },
     },
   ]
@@ -598,6 +626,28 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
         .equals('reading')
         .filter((page) => !page.editedByStudent)
         .modify({ status: 'unread' })
+    },
+
+    // Explainers. Adding Material never makes them outdated.
+
+    /** Stores a new Explainer for the Exam; returns its id. */
+    async addExplainer(examId: number, draft: ExplainerDraft): Promise<number> {
+      return db.explainers.add({ examId, ...draft, createdAt: Date.now() })
+    },
+
+    /** An Exam's Explainers, newest first. */
+    async examExplainers(examId: number): Promise<Explainer[]> {
+      const explainers = await db.explainers.where('examId').equals(examId).toArray()
+      return explainers.sort((a, b) => b.createdAt - a.createdAt || b.id - a.id)
+    },
+
+    /** The Explainer, or null if there is none with that id (e.g. it was deleted). */
+    async getExplainer(id: number): Promise<Explainer | null> {
+      return (await db.explainers.get(id)) ?? null
+    },
+
+    async deleteExplainer(id: number) {
+      await db.explainers.delete(id)
     },
 
     async close() {

@@ -33,17 +33,18 @@ src/
     persistentStorage.ts navigator.storage.persist() on launch
   store/store.ts         Store: the only module that touches IndexedDB (Dexie)
   gateway/               Model Gateway: the only module that talks to OpenRouter
-    gateway.ts           operations (checkKey, readPage) + shared `send` and `complete`
+    gateway.ts           operations (checkKey, readPage, generateStructured, generateWithWebSearch) + shared `send` and `complete`
     errors.ts            GatewayError kinds: NoKey, InvalidKey, NoCredit, Offline, RateLimited, Unavailable, BadResponse
     dataUrl.ts           bytes → data URL (image and file parts)
   prompts/               Prompt Builder: context.ts (Language, Grade Level, Markdown+math rules) + one file per prompt
   pageSplitter/          Page Splitter: picked file → MaterialDraft (photos so far)
   pageViewer/            Page Viewer: a Page's original (photos: <img>)
   readingQueue/          Reading Queue: reads unread Pages one at a time, records status in the Store; retries, pauses, resumes
+  studyAids/             Study Aids: explainers.ts (examText, suggestTopics, generateExplainer)
   settings/models.ts     AI jobs and their default models
   exams/calendar.ts      school year of a day, days until an Exam Date (local time)
   components/            shared UI (Section, NeedsKey, RichText, ExamList, DeleteWithConfirmation + confirmations, ...)
-  screens/               one folder/file per screen (home, Period, exams/, material/, subjects/, settings/)
+  screens/               one folder/file per screen (home, Period, exams/, material/, explainers/, subjects/, settings/)
 tests/
   harness/               the app-level test harness (below)
   *.test.tsx             app-level tests, one file per feature
@@ -61,6 +62,13 @@ New modules from spec #1 (Page Splitter, Reading Queue, Quiz Maker, ...) get the
 - **Correcting Material**: `editRecognizedText(pageId, text)` saves the Student's text and sets `editedByStudent`; every reading transition (`markPageReading/Read/Failed/Unread`, `requeueInterruptedPages`) skips an edited Page, so reading never overwrites her text. `renameMaterial`, `materialDeletion` (for the confirmation) and `deleteMaterial` (with its Pages and scans) are on the Store; the Material screen's "Este material" section uses them.
 - **Material revision**: `Exam.materialRevision` (0 for a new Exam) goes up once per `addMaterials` call, `deleteMaterial` and real `editRecognizedText` change, inside the same transaction. Renaming and reading a Page don't change it. A Summary stores the revision it was built at; a mismatch means Outdated.
 - **RichText** (`src/components/RichText.tsx`) renders Markdown with `$`/`$$` math (KaTeX), and rewrites `\(..\)`/`\[..\]`. Use it for every model-written text.
+
+### Explainers
+
+- **Store**: an `Explainer` (`topic`, `markdown`, `sources: { url, title }[]`, `createdAt`) belongs to an Exam: `addExplainer`, `examExplainers` (newest first), `getExplainer`, `deleteExplainer`. It is an Exam part (`'explainers'`), and nothing marks it Outdated.
+- **Model Gateway**: `generateStructured(prompt, schema, job)` sends a strict `json_schema` response format with `provider.require_parameters`, parses the content and checks it with `schema.isValid` (a `StructuredSchema<T>`: `{ name, schema, isValid }`); failing either is `BadResponse`. `generateWithWebSearch(prompt)` uses the `explainer` model with the `openrouter:web_search` server tool and returns `{ markdown, citations }`: the `url_citation` annotations, each http(s) URL once.
+- **Study Aids** (`src/studyAids/explainers.ts`): `examText(store, examId)` gives the read Pages' Recognized Text by Material plus `readPages` / `notIncluded` counts (the availability rule and the "N páginas aún no se incluyen" warning). `suggestTopics` uses the `summary` model; `generateExplainer` stores the Explainer and returns its id.
+- **Screens**: the Exam screen's "Explicaciones" section (list, "Sugerir temas", a "Tema" field); `#/examenes/:examId/explicaciones/:explainerId` shows one, with "Fuentes" and its delete.
 
 ### Data under an Exam
 
@@ -95,8 +103,8 @@ it('shows the spend limit', async () => {
   - `reopen()`: closes the app (unmount + close the Store) and launches it again on the same database at the start URL. Use it for anything that must survive a restart;
   - `store`: the running app's Store, only for rules nothing on screen shows yet (e.g. `(await app.store.currentPeriodExams())!.exams[0].materialRevision`). Read through it; don't use it to set things up or change data mid-test;
   - `storage`: the fake `navigator.storage` (`persist` / `persisted` are `vi.fn`s).
-  - `options.student` / `options.openRouterKey` / `options.subjects` / `options.exams` are preconditions written through the Store's public API before launch. `exams[].materials: [{ name: 'Unidad 1', pages: ['# Fracciones ...'] }]` adds photo Material whose Pages are already read (one Recognized Text per Page), so no reading request is sent; `unreadPages: n` adds n more Pages still to be read (read on launch). Use them to skip setup that isn't what the test is about; drive the behaviour under test through the screens. Add more options here as later tickets need them (always via Store methods, never raw tables).
-- **MSW** (`tests/harness/openRouter.ts`): every test starts with `defaultHandlers` (a working key, no limit). Override per test with `server.use(openRouter.key.invalid())`, `.status(402)`, `.offline()` and so on. Unhandled requests fail the test, so add a scripted response to `openRouter` for each new endpoint or operation. Page reading is `openRouter.readPage.text(md)` / `.texts([md1, md2])` / `.status(401)` / `.cutOff()` / `.offline()`, or `.inTurn(['md', 400, 'offline', 'hang'])` to script each Page in turn (`'hang'` never answers during the test, e.g. a Page still out when the app closes; setup.ts releases it afterwards). Chat completions are told apart with `chatHandler(matches, respond)`: a handler only answers the requests it matches (e.g. readPage = has an image/file part) and lets others fall through, so add e.g. `openRouter.structured.*` the same way. `chatCompletion(content)` builds the response body.
+  - `options.student` / `options.openRouterKey` / `options.subjects` / `options.exams` are preconditions written through the Store's public API before launch. `exams[].materials: [{ name: 'Unidad 1', pages: ['# Fracciones ...'] }]` adds photo Material whose Pages are already read (one Recognized Text per Page), so no reading request is sent; `unreadPages: n` adds n more Pages still to be read (read on launch). `exams[].explainers: [{ topic, markdown, sources }]` adds Explainers. Use them to skip setup that isn't what the test is about; drive the behaviour under test through the screens. Add more options here as later tickets need them (always via Store methods, never raw tables).
+- **MSW** (`tests/harness/openRouter.ts`): every test starts with `defaultHandlers` (a working key, no limit). Override per test with `server.use(openRouter.key.invalid())`, `.status(402)`, `.offline()` and so on. Unhandled requests fail the test, so add a scripted response to `openRouter` for each new endpoint or operation. Page reading is `openRouter.readPage.text(md)` / `.texts([md1, md2])` / `.status(401)` / `.cutOff()` / `.offline()`, or `.inTurn(['md', 400, 'offline', 'hang'])` to script each Page in turn (`'hang'` never answers during the test, e.g. a Page still out when the app closes; setup.ts releases it afterwards). Structured JSON is `openRouter.structured.json(value)` / `.raw(text)` / `.status(n)` / `.offline()` (matches a `json_schema` response format); web-searched answers are `openRouter.webSearch.answer(md, [urlCitation(url, title)])` / `.answers([...])` / `.status(n)` / `.offline()` (matches the `openrouter:web_search` tool). Chat completions are told apart with `chatHandler(matches, respond)`: a handler only answers the requests it matches (e.g. readPage = has an image/file part) and lets others fall through, so add e.g. `openRouter.structured.*` the same way. `chatCompletion(content)` builds the response body.
 - **Files** (`tests/harness/files.ts`): `photo('unidad 1.jpg')` for `user.upload(screen.getByLabelText('Agregar material'), ...)`, and `dataUrlOf(type, bytes)` for the request check. `openRouterRequests` lists the requests sent in the current test, for the spec's one allowed request check (headers, Language and Grade Level in the prompt).
 - **Fake clock** (`tests/harness/clock.ts`): `setClock('2026-10-18T09:00')` freezes `Date` only; timers stay real, so `findBy*`/`waitFor`, user-event, MSW and Dexie work unchanged. Call it again to move time; it is reset after each test.
 - **Queries**: prefer roles and labels with the literal Spanish text. Each Settings card is a `region` named by its heading (`<Section title>`), so `within(screen.getByRole('region', { name: 'Modelos' }))` scopes a query to it.

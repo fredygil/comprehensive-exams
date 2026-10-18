@@ -180,6 +180,27 @@ export const strings = {
     },
   },
 
+  explainers: {
+    title: 'Explicaciones',
+    help: 'Una explicación más profunda de un tema, escrita con fuentes de internet.',
+    list: 'Tus explicaciones',
+    empty: 'Aún no tienes explicaciones.',
+    suggest: 'Sugerir temas',
+    suggesting: 'Buscando temas…',
+    suggested: 'Temas sugeridos',
+    topic: 'Tema',
+    topicPlaceholder: 'Escribe un tema, p. ej. «fracciones equivalentes»',
+    create: 'Crear explicación',
+    creating: (topic: string) => `Escribiendo la explicación de «${topic}»…`,
+    sources: 'Fuentes',
+    noSources: 'El modelo no citó fuentes para esta explicación.',
+    backToExam: (subject: string) => `Volver a ${subject}`,
+    needsReadPage: 'Agrega material y espera a que se lea al menos una página.',
+    /** Pages the topic suggestions leave out because they are unread or failed. */
+    notIncluded: (pages: number) =>
+      pages === 1 ? '1 página aún no se incluye.' : `${pages} páginas aún no se incluyen.`,
+  },
+
   /** Delete confirmations: they name everything that will be lost. */
   deletion: {
     willLose: 'Se borrará para siempre:',
@@ -190,6 +211,11 @@ export const strings = {
       action: 'Eliminar examen',
       title: '¿Eliminar este examen?',
       item: (subject: string, period: string) => `El examen de ${subject} de ${period}`,
+    },
+    explainer: {
+      action: 'Eliminar explicación',
+      title: '¿Eliminar esta explicación?',
+      item: (topic: string) => `La explicación «${topic}»`,
     },
     subject: {
       action: 'Eliminar materia',
@@ -206,6 +232,7 @@ export const strings = {
     /** One line per kind of data under an Exam. */
     examParts: {
       materials: (n: number) => (n === 1 ? '1 material' : `${n} materiales`),
+      explainers: (n: number) => (n === 1 ? '1 explicación' : `${n} explicaciones`),
     } satisfies Record<ExamPartKind, (count: number) => string>,
   },
 
