@@ -1,11 +1,14 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { openRouter, server } from './harness/openRouter'
+import { OPENROUTER, openRouter, openRouterRequests, server } from './harness/openRouter'
 import { renderApp } from './harness/renderApp'
 
 const ana = { name: 'Ana', gradeLevel: 5 }
 const subjects = [{ name: 'Matemáticas', language: 'es' as const }]
 const q1 = { schoolYearStart: 2026, quarter: 1 as const }
+
+/** Page reading requests sent so far in this test. */
+const readRequests = () => openRouterRequests.filter((r) => r.url === `${OPENROUTER}/chat/completions`)
 
 type App = Awaited<ReturnType<typeof renderApp>>
 
@@ -42,5 +45,28 @@ describe('reading a Material with many Pages', () => {
     await openMaterial(app, 'Unidad 1')
     expect(await screen.findByText('1 / 3 páginas')).toBeInTheDocument()
     expect(await screen.findByText('La página uno.')).toBeInTheDocument()
+  })
+})
+
+describe('closing the app while Pages are being read', () => {
+  it('reads the unread Pages, and the one it was reading, when she opens it again', async () => {
+    server.use(openRouter.readPage.inTurn(['La página uno.', 'hang']))
+    const app = await renderApp({
+      student: ana,
+      openRouterKey: 'sk-or-v1-good',
+      subjects,
+      exams: [{ subject: 'Matemáticas', period: q1, materials: [{ name: 'Unidad 1', pages: [], unreadPages: 3 }] }],
+    })
+    await openExam(app)
+    expect(await within(await materialItem('Unidad 1')).findByText('1 / 3 páginas')).toBeInTheDocument()
+    // The second Page is on its way to the model when the app closes.
+    await waitFor(() => expect(readRequests()).toHaveLength(2))
+
+    server.use(openRouter.readPage.texts(['La página dos.', 'La página tres.']))
+    await app.reopen()
+    await openExam(app)
+
+    expect(await within(await materialItem('Unidad 1')).findByText('3 / 3 páginas')).toBeInTheDocument()
+    expect(readRequests()).toHaveLength(4)
   })
 })
