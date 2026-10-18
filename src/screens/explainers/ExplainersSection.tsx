@@ -49,7 +49,7 @@ export function ExplainersSection({ exam }: { exam: Exam }) {
   const explain = (topic: string) =>
     run({ kind: 'explainer', topic }, async () => {
       const id = await generateExplainer(services, exam, topic)
-      navigate(`/examenes/${exam.id}/explicaciones/${id}`)
+      if (id !== null) navigate(`/examenes/${exam.id}/explicaciones/${id}`)
     })
 
   function submit(event: FormEvent) {

@@ -296,6 +296,13 @@ export class InvalidSnapshotError extends Error {
   }
 }
 
+/**
+ * Which contents of the tablet a slow job (a Summary, Explainer or Practice
+ * Quiz being generated) started from: replaceAll starts a new epoch. Writes
+ * that take one are dropped if it has changed (see epoch()).
+ */
+export type StoreEpoch = number
+
 type PageOriginalRow = { pageId: number; bytes: ArrayBuffer; mime: PageMime }
 
 // Singleton records (one Student, one Settings) live in one table, keyed by id.
@@ -343,6 +350,8 @@ export const DEFAULT_DB_NAME = 'comprehensive-exams'
 
 export function createStore(dbName: string = DEFAULT_DB_NAME) {
   const db = new Database(dbName)
+  // Goes up when replaceAll replaces everything (see StoreEpoch).
+  let currentEpoch: StoreEpoch = 0
 
   // Data stored under an Exam, one entry per ExamPartKind. Each entry names
   // the tables it touches (so deletes run in one transaction), counts what an
@@ -434,6 +443,15 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     return row ? (await withSubjectAndPeriod([row]))[0] : null
   }
 
+  /**
+   * May a result started in `startedIn` be stored under the Exam? Not if the
+   * Exam was deleted, or everything was replaced, since. Call inside the
+   * write's transaction, which must include db.exams.
+   */
+  async function canStoreUnder(examId: number, startedIn: StoreEpoch): Promise<boolean> {
+    return startedIn === currentEpoch && (await db.exams.get(examId)) !== undefined
+  }
+
   /** Marks the Exam's Material as changed; call inside a transaction that includes db.exams. */
   function bumpMaterialRevision(examId: number) {
     return db.exams.where('id').equals(examId).modify((exam) => {
@@ -500,6 +518,15 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
   }
 
   return {
+    /**
+     * The epoch to pass to a write that will happen after a slow job (a model
+     * call): take it before the job starts, so a result that comes back after
+     * its Exam was deleted, or after a backup replaced everything, is dropped.
+     */
+    epoch(): StoreEpoch {
+      return currentEpoch
+    },
+
     /** The Student, or null before the first-run screen has been completed. */
     async getStudent(): Promise<Student | null> {
       const row = await db.singletons.get('student')
@@ -802,9 +829,15 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
 
     // Explainers. Adding Material never makes them outdated.
 
-    /** Stores a new Explainer for the Exam; returns its id. */
-    async addExplainer(examId: number, draft: ExplainerDraft): Promise<number> {
-      return db.explainers.add({ examId, ...draft, createdAt: Date.now() })
+    /**
+     * Stores a new Explainer for the Exam; returns its id, or null if it was
+     * dropped (the Exam is gone, or everything was replaced, since `startedIn`).
+     */
+    async addExplainer(examId: number, draft: ExplainerDraft, startedIn: StoreEpoch): Promise<number | null> {
+      return db.transaction('rw', [db.exams, db.explainers], async () => {
+        if (!(await canStoreUnder(examId, startedIn))) return null
+        return db.explainers.add({ examId, ...draft, createdAt: Date.now() })
+      })
     },
 
     /** An Exam's Explainers, newest first. */
@@ -846,13 +879,18 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
 
     // Practice Quizzes (the Quiz Maker and the Quiz Session).
 
-    /** Stores new Questions and an In Progress quiz of them, in that order. Returns the quiz id. */
+    /**
+     * Stores new Questions and an In Progress quiz of them, in that order.
+     * Returns the quiz id, or null if it was dropped (the Exam is gone, or
+     * everything was replaced, since `startedIn`).
+     */
     async addPracticeQuiz(
       examId: number,
       questions: QuestionDraft[],
-      options: { mayRepeat: boolean },
-    ): Promise<number> {
-      return db.transaction('rw', [db.questions, db.quizzes], async () => {
+      options: { mayRepeat: boolean; startedIn: StoreEpoch },
+    ): Promise<number | null> {
+      return db.transaction('rw', [db.exams, db.questions, db.quizzes], async () => {
+        if (!(await canStoreUnder(examId, options.startedIn))) return null
         const items: QuizItem[] = []
         for (const question of questions) {
           const questionId = await db.questions.add({ ...question, examId, isMistake: false })
@@ -981,9 +1019,16 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     // The Summary. It is Outdated when the Exam's material revision or its
     // Subject's Language is no longer what it was built with.
 
-    /** Stores the Exam's Summary, replacing the one it had. */
-    async saveSummary(examId: number, draft: SummaryDraft) {
-      await db.summaries.put({ ...draft, examId, createdAt: Date.now() })
+    /**
+     * Stores the Exam's Summary, replacing the one it had. Returns false if it
+     * was dropped (the Exam is gone, or everything was replaced, since `startedIn`).
+     */
+    async saveSummary(examId: number, draft: SummaryDraft, startedIn: StoreEpoch): Promise<boolean> {
+      return db.transaction('rw', [db.exams, db.summaries], async () => {
+        if (!(await canStoreUnder(examId, startedIn))) return false
+        await db.summaries.put({ ...draft, examId, createdAt: Date.now() })
+        return true
+      })
     },
 
     /** The Exam's Summary and whether it is Outdated; null if it has none. */
@@ -1021,7 +1066,8 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     /**
      * Replaces everything on the tablet with the snapshot, in one transaction,
      * keeping this tablet's OpenRouter key. Pages that were being read when it
-     * was taken are back in line to be read. Throws InvalidSnapshotError (and
+     * was taken are back in line to be read. It starts a new epoch, so a
+     * Study Aid or quiz still being generated is dropped when it comes back. Throws InvalidSnapshotError (and
      * changes nothing) if the snapshot isn't one of this Store or its rows
      * can't be stored.
      */
@@ -1029,6 +1075,7 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       if (!isSnapshotOfThisStore(snapshot)) throw new InvalidSnapshotError()
       try {
         await db.transaction('rw', db.tables, async () => {
+          currentEpoch += 1
           const { openRouterKey } = await readSettings()
           for (const table of db.tables) await table.clear()
           for (const table of db.tables) await table.bulkAdd(snapshot[table.name])

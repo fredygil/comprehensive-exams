@@ -42,14 +42,16 @@ export async function suggestTopics({ store, gateway }: StudyAidServices, exam: 
 
 /**
  * Researches the topic on the web and stores the Explainer (Markdown and the
- * sources it cites) under the Exam. Returns its id.
+ * sources it cites) under the Exam. Returns its id, or null if it was dropped
+ * because the Exam was deleted, or a backup restored, meanwhile.
  */
 export async function generateExplainer(
   { store, gateway }: StudyAidServices,
   exam: Exam,
   topic: string,
-): Promise<number> {
+): Promise<number | null> {
+  const startedIn = store.epoch()
   const context = await promptContext(store, exam)
   const answer = await gateway.generateWithWebSearch(explainerPrompt(context, exam.subject.name, topic))
-  return store.addExplainer(exam.id, { topic, markdown: answer.markdown, sources: answer.citations })
+  return store.addExplainer(exam.id, { topic, markdown: answer.markdown, sources: answer.citations }, startedIn)
 }

@@ -83,7 +83,8 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
     /**
      * Generates `count` (1–20) Questions from the read Pages of the chosen
      * Materials (`materialIds`; all of the Exam's by default) and stores them
-     * as a new In Progress Practice Quiz. Returns its id.
+     * as a new In Progress Practice Quiz. Returns its id, or null if it was
+     * dropped because its Exam was deleted, or a backup restored, meanwhile.
      * Gateway failures are thrown as GatewayError; a reply with no usable
      * Question is BadResponse. The model may write fewer than asked; extra
      * ones are dropped.
@@ -91,7 +92,8 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
     async createPracticeQuiz(
       examId: number,
       { count, materialIds }: { count: number; materialIds?: number[] },
-    ): Promise<number> {
+    ): Promise<number | null> {
+      const startedIn = store.epoch()
       const exam = await store.getExam(examId)
       const student = await store.getStudent()
       if (!exam || !student) throw new Error('createPracticeQuiz: no such Exam, or no Student')
@@ -131,7 +133,7 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
       })
       const asked = new Set(earlierPrompts.map(normalizedPrompt))
       const mayRepeat = questions.some((question) => asked.has(normalizedPrompt(question.prompt)))
-      return store.addPracticeQuiz(examId, questions, { mayRepeat })
+      return store.addPracticeQuiz(examId, questions, { mayRepeat, startedIn })
     },
 
     /**

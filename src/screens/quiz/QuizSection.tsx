@@ -61,7 +61,8 @@ export function QuizSection({ exam }: { exam: Exam }) {
     try {
       const materialIds = excluded.size ? chosen.map(({ material }) => material.id) : undefined
       const quizId = await quizMaker.createPracticeQuiz(exam.id, { count, materialIds })
-      navigate(`/examenes/${exam.id}/quiz/${quizId}`)
+      if (quizId === null) setCreating(false)
+      else navigate(`/examenes/${exam.id}/quiz/${quizId}`)
     } catch (error) {
       if (!(error instanceof GatewayError)) throw error
       setFailure(error.kind)

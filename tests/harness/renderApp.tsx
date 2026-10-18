@@ -81,12 +81,16 @@ async function seedMaterial(store: Store, examId: number, material: SeededMateri
 async function seedSummary(store: Store, examId: number, markdown: string) {
   const exam = (await store.getExam(examId))!
   const { pageIds } = await examText(store, examId)
-  await store.saveSummary(examId, {
-    markdown,
-    builtAtRevision: exam.materialRevision,
-    builtWithLanguage: exam.subject.language,
-    includedPageIds: pageIds,
-  })
+  await store.saveSummary(
+    examId,
+    {
+      markdown,
+      builtAtRevision: exam.materialRevision,
+      builtWithLanguage: exam.subject.language,
+      includedPageIds: pageIds,
+    },
+    store.epoch(),
+  )
 }
 
 type RunningApp = { services: AppServices; unmount: () => void }
@@ -154,7 +158,7 @@ export async function renderApp(options: RenderAppOptions = {}) {
         examDate: exam.examDate ?? null,
       })
       for (const material of exam.materials ?? []) await seedMaterial(store, examId, material)
-      for (const explainer of exam.explainers ?? []) await store.addExplainer(examId, explainer)
+      for (const explainer of exam.explainers ?? []) await store.addExplainer(examId, explainer, store.epoch())
       if (exam.summary !== undefined) await seedSummary(store, examId, exam.summary)
     }
   })

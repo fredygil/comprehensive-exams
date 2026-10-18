@@ -35,8 +35,7 @@ export function SummaryActions(props: {
     setGenerating(true)
     setError(null)
     try {
-      await generateSummary(services, exam.id)
-      props.onGenerated?.()
+      if (await generateSummary(services, exam.id)) props.onGenerated?.()
     } catch (error) {
       if (!(error instanceof GatewayError)) throw error
       setError(strings.errors[error.kind])
