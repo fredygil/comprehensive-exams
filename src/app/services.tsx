@@ -3,6 +3,8 @@
 // tests/harness/renderApp.tsx); main.tsx creates the real ones.
 import { createContext, useContext } from 'react'
 import { createModelGateway, type ModelGateway } from '../gateway/gateway'
+import { createQuizMaker, type QuizMaker } from '../quizMaker/quizMaker'
+import { createQuizSession, type QuizSession } from '../quizSession/quizSession'
 import { createReadingQueue, type ReadingQueue } from '../readingQueue/readingQueue'
 import { createStore, type Store } from '../store/store'
 import { APP_TITLE, APP_URL } from './config'
@@ -12,6 +14,10 @@ export type AppServices = {
   gateway: ModelGateway
   /** Reads unread Pages in the background; <App> starts it on launch. */
   readingQueue: ReadingQueue
+  /** Makes Practice Quizzes. */
+  quizMaker: QuizMaker
+  /** Answers and submits Practice Quizzes. */
+  quizSession: QuizSession
 }
 
 export type AppServicesOptions = {
@@ -29,7 +35,9 @@ export function createAppServices(options: AppServicesOptions = {}): AppServices
     appTitle: APP_TITLE,
   })
   const readingQueue = createReadingQueue({ store, gateway, wait: options.wait })
-  return { store, gateway, readingQueue }
+  const quizMaker = createQuizMaker({ store, gateway })
+  const quizSession = createQuizSession({ store })
+  return { store, gateway, readingQueue, quizMaker, quizSession }
 }
 
 export const ServicesContext = createContext<AppServices | null>(null)

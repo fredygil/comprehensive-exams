@@ -366,3 +366,82 @@ button.danger-outline {
 .source-list a {
   overflow-wrap: anywhere;
 }
+
+/* Practice Quiz: one Question per screen, options as large tap targets. */
+.options {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 56px;
+  padding: 0.5rem 1rem;
+  border: 2px solid #c8d1da;
+  border-radius: 8px;
+  background: var(--card);
+  cursor: pointer;
+}
+
+.option:has(input:checked) {
+  border-color: var(--brand);
+  background: #eaf2f8;
+}
+
+.option input {
+  min-height: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
+
+.option .rich-text p,
+.answer .rich-text p {
+  margin: 0;
+}
+
+.score {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.feedback-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 1rem;
+}
+
+.feedback {
+  display: grid;
+  gap: 0.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e3e8ed;
+}
+
+.feedback h3 {
+  margin: 0;
+}
+
+.answer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+}
+
+.answer .label {
+  font-weight: 600;
+}
+
+.answer.wrong .label {
+  color: var(--error);
+}
+
+.answer.right .label {
+  color: var(--ok);
+}

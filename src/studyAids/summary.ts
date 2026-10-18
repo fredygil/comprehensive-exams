@@ -27,15 +27,15 @@ const summarySchema: StructuredSchema<SummaryTopics> = {
       },
     },
   },
-  isValid: (value): value is SummaryTopics => {
-    const topics = (value as { topics?: unknown } | null)?.topics
-    return (
-      Array.isArray(topics) &&
-      topics.length > 0 &&
-      topics.every((topic: { title?: unknown; content?: unknown } | null) => {
-        return typeof topic?.title === 'string' && topic.title.trim() !== '' && typeof topic.content === 'string'
-      })
-    )
+  parse: (json) => {
+    const topics = (json as { topics?: unknown } | null)?.topics
+    if (!Array.isArray(topics) || topics.length === 0) throw new Error('no topics')
+    for (const topic of topics as ({ title?: unknown; content?: unknown } | null)[]) {
+      if (typeof topic?.title !== 'string' || !topic.title.trim() || typeof topic.content !== 'string') {
+        throw new Error('a topic needs a title and its content')
+      }
+    }
+    return { topics: topics as SummaryTopics['topics'] }
   },
 }
 

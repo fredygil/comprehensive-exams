@@ -71,9 +71,10 @@ function isReadPage(body: ChatBody) {
   )
 }
 
-/** Is this chat completion asking for structured JSON (a json_schema response format)? */
-function isStructured(body: ChatBody) {
-  return body.response_format?.type === 'json_schema'
+/** Does this chat completion ask for JSON in the schema with this name (generateStructured)? */
+function asksForJson(schemaName: string) {
+  return (body: ChatBody) =>
+    body.response_format?.type === 'json_schema' && body.response_format.json_schema?.name === schemaName
 }
 
 /** Is this chat completion an answer researched with the web search server tool? */
@@ -84,6 +85,16 @@ function isWebSearch(body: ChatBody) {
 /** A web source as OpenRouter cites it in message.annotations. */
 export function urlCitation(url: string, title: string) {
   return { type: 'url_citation', url_citation: { url, title, content: '…', start_index: 0, end_index: 10 } }
+}
+
+/** A Question as the quiz model writes it (before the app shuffles its options). */
+export type ScriptedQuestion = {
+  prompt: string
+  options: string[]
+  correctIndex: number
+  explanation: string
+  /** The id of the Material it comes from, as a string; a fresh tablet numbers Materials 1, 2, ... in the order added. */
+  sourceMaterialId: string
 }
 
 /**
@@ -128,6 +139,25 @@ function answer(answer: Answer): Response | Promise<Response> {
   return HttpResponse.json(chatCompletion(answer))
 }
 
+/**
+ * Fakes for generateStructured calls in one schema: they answer only chat
+ * completions whose json_schema response format has this name, so each
+ * structured operation (topics, practice_quiz, ...) is scripted on its own.
+ */
+function structured(schemaName: string) {
+  const matches = asksForJson(schemaName)
+  return {
+    /** Answers with this value, as the JSON string models put in `content`. */
+    json: (value: unknown) => chatHandler(matches, () => HttpResponse.json(chatCompletion(JSON.stringify(value)))),
+    /** Answers with this exact content, e.g. text that is not valid JSON. */
+    raw: (content: string) => chatHandler(matches, () => HttpResponse.json(chatCompletion(content))),
+    status: (status: number, metadata?: Record<string, unknown>) =>
+      chatHandler(matches, () => failure(status, `HTTP ${status}`, metadata)),
+    /** The network is down (fetch rejects). */
+    offline: () => chatHandler(matches, () => HttpResponse.error()),
+  }
+}
+
 /** Scripted responses, grouped by endpoint or operation. Each returns an MSW handler. */
 export const openRouter = {
   /** Page reading: chat completions that carry a Page's image or file. */
@@ -160,17 +190,17 @@ export const openRouter = {
     offline: () => chatHandler(isReadPage, () => HttpResponse.error()),
   },
 
-  /** Structured JSON: chat completions with a json_schema response format. */
-  structured: {
-    /** Answers with this value, as the JSON string models put in `content`. */
-    json: (value: unknown) =>
-      chatHandler(isStructured, () => HttpResponse.json(chatCompletion(JSON.stringify(value)))),
-    /** Answers with this exact content, e.g. text that is not valid JSON. */
-    raw: (content: string) =>
-      chatHandler(isStructured, () => HttpResponse.json(chatCompletion(content))),
-    status: (status: number, metadata?: Record<string, unknown>) =>
-      chatHandler(isStructured, () => failure(status, `HTTP ${status}`, metadata)),
-    offline: () => chatHandler(isStructured, () => HttpResponse.error()),
+  /** Topic suggestions: structured JSON in the 'topics' schema. */
+  topics: structured('topics'),
+
+  /** Summaries: structured JSON in the 'summary' schema ({ topics: [{ title, content }] }). */
+  summary: structured('summary'),
+
+  /** Practice Quiz generation: structured JSON in the 'practice_quiz' schema. */
+  practiceQuiz: {
+    ...structured('practice_quiz'),
+    /** The model writes these Questions. */
+    questions: (questions: ScriptedQuestion[]) => structured('practice_quiz').json({ questions }),
   },
 
   /** Answers researched on the web: chat completions with the openrouter:web_search tool. */

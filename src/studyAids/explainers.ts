@@ -17,13 +17,13 @@ const topicsSchema: StructuredSchema<{ topics: string[] }> = {
     required: ['topics'],
     properties: { topics: { type: 'array', items: { type: 'string' } } },
   },
-  isValid: (value): value is { topics: string[] } => {
-    const topics = (value as { topics?: unknown } | null)?.topics
-    return (
-      Array.isArray(topics) &&
-      topics.every((topic) => typeof topic === 'string') &&
-      topics.some((topic) => topic.trim())
-    )
+  parse: (json) => {
+    const topics = (json as { topics?: unknown } | null)?.topics
+    if (!Array.isArray(topics) || !topics.every((topic) => typeof topic === 'string')) {
+      throw new Error('topics is not a list of strings')
+    }
+    if (!topics.some((topic) => topic.trim())) throw new Error('no topics')
+    return { topics }
   },
 }
 

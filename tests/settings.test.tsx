@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { openRouter, openRouterRequests, server } from './harness/openRouter'
 import { renderApp } from './harness/renderApp'
@@ -171,7 +171,7 @@ describe('Settings: models', () => {
     await app.user.type(models.getByLabelText('Resumen'), 'openai/gpt-5.6-luna')
     await app.user.click(models.getByRole('button', { name: 'Guardar modelos' }))
     await app.user.click(models.getByRole('button', { name: 'Usar los predeterminados' }))
-    expect(models.getByLabelText('Resumen')).toHaveValue('anthropic/claude-haiku-5.5')
+    await waitFor(() => expect(models.getByLabelText('Resumen')).toHaveValue('anthropic/claude-haiku-5.5'))
 
     await app.reopen()
     await openSettings(app)

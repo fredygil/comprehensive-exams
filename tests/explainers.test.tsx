@@ -66,7 +66,7 @@ async function chatBodies() {
 
 describe('topic suggestions', () => {
   it('suggests topics from the Exam’s Recognized Text as choices', async () => {
-    server.use(openRouter.structured.json({ topics: ['Fracciones equivalentes', 'Suma de fracciones'] }))
+    server.use(openRouter.topics.json({ topics: ['Fracciones equivalentes', 'Suma de fracciones'] }))
     const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
     await openExam(app)
 
@@ -95,7 +95,7 @@ describe('topic suggestions', () => {
 describe('generating an Explainer', () => {
   it('researches a suggested topic on the web and shows it with its sources', async () => {
     server.use(
-      openRouter.structured.json({ topics: ['Fracciones equivalentes', 'Suma de fracciones'] }),
+      openRouter.topics.json({ topics: ['Fracciones equivalentes', 'Suma de fracciones'] }),
       openRouter.webSearch.answer(equivalentFractions, [
         wikipedia,
         khan,
@@ -172,8 +172,8 @@ describe('when generating fails', () => {
   })
 
   it.each([
-    ['is not JSON', openRouter.structured.raw('Fracciones, sumas')],
-    ['has no topics', openRouter.structured.json({ topics: [] })],
+    ['is not JSON', openRouter.topics.raw('Fracciones, sumas')],
+    ['has no topics', openRouter.topics.json({ topics: [] })],
   ])('says the answer was unusable when the topic list %s', async (_, response) => {
     server.use(response)
     const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
@@ -189,7 +189,7 @@ describe('when generating fails', () => {
   })
 
   it('says the tablet is offline', async () => {
-    server.use(openRouter.structured.offline())
+    server.use(openRouter.topics.offline())
     const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
     await openExam(app)
 
@@ -264,7 +264,7 @@ describe('keeping Explainers', () => {
     expect(await listedExplainers()).toEqual(['Suma de fracciones', 'Fracciones equivalentes'])
 
     await app.reopen()
-    server.use(openRouter.webSearch.offline(), openRouter.structured.offline())
+    server.use(openRouter.webSearch.offline(), openRouter.topics.offline())
     await openExam(app)
     await app.user.click(await (await explainers()).findByRole('link', { name: 'Fracciones equivalentes' }))
 

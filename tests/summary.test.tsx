@@ -63,7 +63,7 @@ async function summarySection() {
 
 describe('generating a Summary', () => {
   it('builds a study guide by topic from the Exam’s Recognized Text and shows it with its formulas', async () => {
-    server.use(openRouter.structured.json(fractionsSummary))
+    server.use(openRouter.summary.json(fractionsSummary))
     const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
     await openExam(app)
 
@@ -99,7 +99,7 @@ async function openSummary(app: App) {
 
 describe('regenerating a Summary', () => {
   it('replaces the one the Exam had: there is only ever one', async () => {
-    server.use(openRouter.structured.json(fractionsSummary))
+    server.use(openRouter.summary.json(fractionsSummary))
     const app = await renderApp({
       student: ana,
       openRouterKey: 'sk-or-v1-good',
@@ -127,7 +127,7 @@ describe('regenerating a Summary', () => {
   })
 
   it('keeps the earlier Summary when generating fails, and says why', async () => {
-    server.use(openRouter.structured.status(402))
+    server.use(openRouter.summary.status(402))
     const app = await renderApp({
       student: ana,
       openRouterKey: 'sk-or-v1-good',
@@ -198,7 +198,7 @@ describe('an Outdated Summary', () => {
   })
 
   it('becomes Outdated when Material is added, and one tap brings it up to date', async () => {
-    server.use(openRouter.readPage.text('Porcentajes.'), openRouter.structured.json(fractionsSummary))
+    server.use(openRouter.readPage.text('Porcentajes.'), openRouter.summary.json(fractionsSummary))
     const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [twoUnits] })
     await openExam(app)
     await summaryShown()
@@ -277,7 +277,7 @@ describe('an Outdated Summary', () => {
 
 describe('Pages not included', () => {
   it('warns how many Pages are unread or failed, and leaves them out of the request', async () => {
-    server.use(openRouter.readPage.inTurn([400, 'hang']), openRouter.structured.json(fractionsSummary))
+    server.use(openRouter.readPage.inTurn([400, 'hang']), openRouter.summary.json(fractionsSummary))
     const app = await renderApp({
       student: ana,
       openRouterKey: 'sk-or-v1-good',
@@ -298,7 +298,7 @@ describe('Pages not included', () => {
   })
 
   it('keeps warning about Pages read after the Summary was made, until it is regenerated', async () => {
-    server.use(openRouter.readPage.text('Porcentajes.'), openRouter.structured.json(fractionsSummary))
+    server.use(openRouter.readPage.text('Porcentajes.'), openRouter.summary.json(fractionsSummary))
     const app = await renderApp({
       student: ana,
       openRouterKey: 'sk-or-v1-good',
@@ -351,7 +351,7 @@ describe('when a Summary can be generated', () => {
 
 describe('offline', () => {
   it('reads the Summary with no internet', async () => {
-    server.use(openRouter.structured.offline(), openRouter.key.offline())
+    server.use(openRouter.summary.offline(), openRouter.key.offline())
     const app = await renderApp({
       student: ana,
       openRouterKey: 'sk-or-v1-good',
@@ -367,7 +367,7 @@ describe('offline', () => {
   })
 
   it('says generating needs internet, and nothing is lost', async () => {
-    server.use(openRouter.structured.offline())
+    server.use(openRouter.summary.offline())
     const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
     await openExam(app)
 
