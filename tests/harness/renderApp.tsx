@@ -13,6 +13,7 @@ import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { App } from '../../src/app/App'
 import { createAppServices, type AppServices } from '../../src/app/services'
+import { examText } from '../../src/studyAids/examText'
 import type {
   ExplainerDraft,
   IsoDate,
@@ -44,6 +45,11 @@ export type RenderAppOptions = {
     materials?: SeededMaterial[]
     /** Explainers already generated, e.g. `[{ topic, markdown, sources: [{ url, title }] }]`. */
     explainers?: ExplainerDraft[]
+    /**
+     * A Summary (its Markdown) generated after the Material above was added
+     * and read, so it is not Outdated and includes every read Page.
+     */
+    summary?: string
   }[]
 }
 
@@ -69,6 +75,18 @@ async function seedMaterial(store: Store, examId: number, material: SeededMateri
   ])
   const pages = await store.materialPages(materialId)
   for (const [i, text] of material.pages.entries()) await store.markPageRead(pages[i].id, text)
+}
+
+/** Stores a Summary as if generated now, from the Exam's read Pages. */
+async function seedSummary(store: Store, examId: number, markdown: string) {
+  const exam = (await store.getExam(examId))!
+  const { pageIds } = await examText(store, examId)
+  await store.saveSummary(examId, {
+    markdown,
+    builtAtRevision: exam.materialRevision,
+    builtWithLanguage: exam.subject.language,
+    includedPageIds: pageIds,
+  })
 }
 
 type RunningApp = { services: AppServices; unmount: () => void }
@@ -132,6 +150,7 @@ export async function renderApp(options: RenderAppOptions = {}) {
       })
       for (const material of exam.materials ?? []) await seedMaterial(store, examId, material)
       for (const explainer of exam.explainers ?? []) await store.addExplainer(examId, explainer)
+      if (exam.summary !== undefined) await seedSummary(store, examId, exam.summary)
     }
   })
 

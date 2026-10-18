@@ -88,3 +88,60 @@ describe('generating a Summary', () => {
     expect(prompt).toMatch(/grade 5/)
   })
 })
+
+const oldSummary = '## Fracciones\n\nResumen viejo de las fracciones.'
+
+async function openSummary(app: App) {
+  await app.user.click(await (await summarySection()).findByRole('link', { name: 'Leer el resumen' }))
+  await screen.findByRole('heading', { name: /^Resumen de/, level: 1 })
+}
+
+describe('regenerating a Summary', () => {
+  it('replaces the one the Exam had: there is only ever one', async () => {
+    server.use(openRouter.structured.json(fractionsSummary))
+    const app = await renderApp({
+      student: ana,
+      openRouterKey: 'sk-or-v1-good',
+      subjects,
+      exams: [{ ...mathExam, summary: oldSummary }],
+    })
+    await openExam(app)
+    const section = await summarySection()
+    expect(await section.findByRole('button', { name: 'Regenerar' })).toBeInTheDocument()
+    expect(section.queryByRole('button', { name: 'Generar resumen' })).not.toBeInTheDocument()
+    await openSummary(app)
+    expect(screen.getByText('Resumen viejo de las fracciones.')).toBeInTheDocument()
+
+    await app.user.click(await screen.findByRole('button', { name: 'Regenerar' }))
+
+    expect(await screen.findByRole('heading', { name: 'Fracciones equivalentes', level: 2 })).toBeInTheDocument()
+    expect(screen.queryByText('Resumen viejo de las fracciones.')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('article')).toHaveLength(1)
+
+    await app.reopen()
+    await openExam(app)
+    await openSummary(app)
+    expect(await screen.findByRole('heading', { name: 'Fracciones equivalentes', level: 2 })).toBeInTheDocument()
+    expect(screen.queryByText('Resumen viejo de las fracciones.')).not.toBeInTheDocument()
+  })
+
+  it('keeps the earlier Summary when generating fails, and says why', async () => {
+    server.use(openRouter.structured.status(402))
+    const app = await renderApp({
+      student: ana,
+      openRouterKey: 'sk-or-v1-good',
+      subjects,
+      exams: [{ ...mathExam, summary: oldSummary }],
+    })
+    await openExam(app)
+    await openSummary(app)
+
+    await app.user.click(await screen.findByRole('button', { name: 'Regenerar' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Se acabó el saldo de la clave de OpenRouter. Pídele a un adulto que lo recargue.',
+    )
+    expect(screen.getByText('Resumen viejo de las fracciones.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Regenerar' })).toBeEnabled()
+  })
+})
