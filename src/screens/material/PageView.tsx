@@ -1,4 +1,6 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { useId } from 'react'
+import { useServices } from '../../app/services'
 import { NeedsKeyNotice, useHasKey } from '../../components/NeedsKey'
 import { RichText } from '../../components/RichText'
 import { PageViewer } from '../../pageViewer/PageViewer'
@@ -13,7 +15,7 @@ export function PageView({ page }: { page: Page }) {
   return (
     <div className="page-view">
       <figure className="page-original card">
-        <PageViewer page={page} alt={text.original(page.index + 1)} />
+        <PageOriginalView page={page} />
       </figure>
       <section aria-labelledby={textId} className="page-text card">
         <h2 id={textId}>{text.recognizedText}</h2>
@@ -21,6 +23,14 @@ export function PageView({ page }: { page: Page }) {
       </section>
     </div>
   )
+}
+
+/** The Page's scan, once loaded from the Store. */
+function PageOriginalView({ page }: { page: Page }) {
+  const { store } = useServices()
+  const original = useLiveQuery(() => store.getPageOriginal(page.id), [store, page.id])
+  if (!original) return null
+  return <PageViewer original={original} alt={strings.material.page.original(page.index + 1)} />
 }
 
 function PageText({ page }: { page: Page }) {

@@ -3,7 +3,6 @@
 // A photo (JPG/PNG) is one Page. A PDF is split with pdf-lib into one
 // single-page PDF per page, in order, so each Page is read and shown on its
 // own. Runs anywhere (no canvas, no DOM).
-import { PDFDocument } from 'pdf-lib'
 import type { MaterialDraft, PageMime, PageOriginal } from '../store/store'
 
 /** The file types the picker offers and the splitter accepts (the `accept` attribute). */
@@ -50,6 +49,8 @@ export async function splitIntoPages(file: File): Promise<PageOriginal[]> {
 
 /** One single-page PDF per page of the PDF, in order. */
 async function splitPdf(bytes: Uint8Array<ArrayBuffer>) {
+  // Loaded on the first PDF: pdf-lib is large and photos don't need it.
+  const { PDFDocument } = await import('pdf-lib')
   // ignoreEncryption: scanner PDFs often carry an owner password only.
   const source = await PDFDocument.load(bytes, { ignoreEncryption: true })
   const pages: Uint8Array<ArrayBuffer>[] = []

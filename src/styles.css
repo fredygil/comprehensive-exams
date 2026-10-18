@@ -304,6 +304,17 @@ button.danger-outline {
   min-width: 0;
 }
 
+/* "Página anterior · Página 2 de 12 · Página siguiente" above the Page. */
+.page-nav {
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.page-nav p {
+  margin: 0;
+  font-weight: 600;
+}
+
 .rich-text {
   overflow-wrap: anywhere;
 }

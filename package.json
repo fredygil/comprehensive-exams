@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "lint": "oxlint",
     "preview": "vite preview",
-    "generate-pwa-assets": "pwa-assets-generator --preset minimal-2023 public/icon.svg"
+    "generate-pwa-assets": "pwa-assets-generator --preset minimal-2023 public/icon.svg",
+    "test:unit": "vitest run --project unit",
+    "test:browser": "vitest run --project browser"
   },
   "dependencies": {
     "dexie": "^4.4.6",
