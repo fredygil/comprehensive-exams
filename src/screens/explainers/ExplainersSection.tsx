@@ -74,9 +74,6 @@ export function ExplainersSection({ exam }: { exam: Exam }) {
         <p className="hint">{text.help}</p>
         {hasKey === false && <NeedsKeyNotice />}
         {scope?.readPages === 0 && <p className="hint">{text.needsReadPage}</p>}
-        {scope && scope.readPages > 0 && scope.notIncluded > 0 && (
-          <p className="notice">{text.notIncluded(scope.notIncluded)}</p>
-        )}
         <div className="row">
           <button type="button" onClick={suggest} disabled={!ready || busy}>
             {pending?.kind === 'topics' ? text.suggesting : text.suggest}

@@ -230,14 +230,17 @@ describe('when Explainers cannot be made yet', () => {
     expect(section.getByRole('button', { name: 'Crear explicación' })).toBeDisabled()
   })
 
-  it('warns how many Pages the topic suggestions leave out', async () => {
+  it('doesn’t warn about Pages not read yet, since an Explainer is researched on the web', async () => {
     server.use(openRouter.readPage.status(400))
     const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
     await openExam(app)
     await app.user.upload(screen.getByLabelText('Agregar material'), photo('unidad 2.jpg'))
 
+    // The Summary, made from her Material, does warn once the new Page has failed.
+    const summary = within(screen.getByRole('region', { name: 'Resumen' }))
+    expect(await summary.findByText('1 página aún no se incluye.')).toBeInTheDocument()
     const section = await explainers()
-    expect(await section.findByText('1 página aún no se incluye.')).toBeInTheDocument()
+    expect(section.queryByText('1 página aún no se incluye.')).not.toBeInTheDocument()
     expect(section.getByRole('button', { name: 'Sugerir temas' })).toBeEnabled()
   })
 })
