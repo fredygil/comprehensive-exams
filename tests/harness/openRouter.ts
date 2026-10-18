@@ -48,7 +48,10 @@ export function chatCompletion(content: string, choice: { finish_reason?: string
   }
 }
 
-type ChatBody = { messages?: { content?: unknown }[] }
+type ChatBody = {
+  messages?: { content?: unknown }[]
+  response_format?: { type?: string; json_schema?: { name?: string } }
+}
 
 /** Is this chat completion a Page being read (it carries the Page's image or file)? */
 function isReadPage(body: ChatBody) {
@@ -57,6 +60,11 @@ function isReadPage(body: ChatBody) {
       Array.isArray(message.content) &&
       message.content.some((part: { type?: string }) => part.type === 'image_url' || part.type === 'file'),
   )
+}
+
+/** Is this chat completion asking for structured JSON (a json_schema response format)? */
+function isStructured(body: ChatBody) {
+  return body.response_format?.type === 'json_schema'
 }
 
 /**
@@ -95,6 +103,19 @@ export const openRouter = {
       chatHandler(isReadPage, () => HttpResponse.json(chatCompletion('', { finish_reason: 'length' }))),
     /** The network is down (fetch rejects). */
     offline: () => chatHandler(isReadPage, () => HttpResponse.error()),
+  },
+
+  /** Structured JSON: chat completions with a json_schema response format. */
+  structured: {
+    /** Answers with this value, as the JSON string models put in `content`. */
+    json: (value: unknown) =>
+      chatHandler(isStructured, () => HttpResponse.json(chatCompletion(JSON.stringify(value)))),
+    /** Answers with this exact content, e.g. text that is not valid JSON. */
+    raw: (content: string) =>
+      chatHandler(isStructured, () => HttpResponse.json(chatCompletion(content))),
+    status: (status: number, metadata?: Record<string, unknown>) =>
+      chatHandler(isStructured, () => failure(status, `HTTP ${status}`, metadata)),
+    offline: () => chatHandler(isStructured, () => HttpResponse.error()),
   },
 
   key: {

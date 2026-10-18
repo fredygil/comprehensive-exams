@@ -35,6 +35,20 @@ export type Completion = {
   annotations: unknown[]
 }
 
+/**
+ * The JSON a structured generation must answer with: a JSON Schema for the
+ * model (strict mode: every object lists all its keys in `required` and has
+ * `additionalProperties: false`; no min/max keywords) and a check the answer
+ * must pass, since providers enforce the schema unevenly.
+ */
+export type StructuredSchema<T> = {
+  /** Names the schema in the request, e.g. 'topics'. */
+  name: string
+  schema: Record<string, unknown>
+  /** Does the parsed answer have the shape and values the caller needs? */
+  isValid: (value: unknown) => value is T
+}
+
 type ChatMessage = { role: 'user' | 'system'; content: string | ContentPart[] }
 
 type ContentPart =
@@ -142,6 +156,31 @@ export function createModelGateway(options: ModelGatewayOptions) {
         ],
       })
       return content.trim()
+    },
+
+    /**
+     * Asks for JSON that fits `schema`: a strict json_schema response format,
+     * only from providers that support it. An answer that isn't JSON or
+     * fails `schema.isValid` is BadResponse.
+     */
+    async generateStructured<T>(prompt: string, schema: StructuredSchema<T>, job: Job): Promise<T> {
+      const { content } = await complete(job, {
+        reasoning: { effort: 'low' },
+        messages: [{ role: 'user', content: prompt }],
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: schema.name, strict: true, schema: schema.schema },
+        },
+        provider: { require_parameters: true },
+      })
+      let value: unknown
+      try {
+        value = JSON.parse(content)
+      } catch {
+        throw new GatewayError('BadResponse', 'not JSON')
+      }
+      if (!schema.isValid(value)) throw new GatewayError('BadResponse', `does not fit ${schema.name}`)
+      return value
     },
 
     /** Is the saved key accepted, and what is its spend limit? (GET /key) */

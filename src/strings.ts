@@ -170,6 +170,23 @@ export const strings = {
     },
   },
 
+  summary: {
+    title: 'Resumen',
+    help: 'Una guía de estudio de todo tu material, organizada por temas.',
+    generate: 'Generar resumen',
+    generating: 'Escribiendo el resumen…',
+    regenerate: 'Regenerar',
+    open: 'Leer el resumen',
+    /** The Summary screen's heading: "Resumen de Matemáticas". */
+    heading: (subject: string) => `Resumen de ${subject}`,
+    backToExam: (subject: string) => `Volver a ${subject}`,
+    outdated: 'Desactualizado: tu material o el idioma de la materia cambiaron desde que se hizo este resumen.',
+    needsReadPage: 'Agrega material y espera a que se lea al menos una página.',
+    /** Pages the Summary leaves out because they are unread or failed. */
+    notIncluded: (pages: number) =>
+      pages === 1 ? '1 página aún no se incluye.' : `${pages} páginas aún no se incluyen.`,
+  },
+
   /** Delete confirmations: they name everything that will be lost. */
   deletion: {
     willLose: 'Se borrará para siempre:',
@@ -196,6 +213,7 @@ export const strings = {
     /** One line per kind of data under an Exam. */
     examParts: {
       materials: (n: number) => (n === 1 ? '1 material' : `${n} materiales`),
+      summary: () => 'El resumen',
     } satisfies Record<ExamPartKind, (count: number) => string>,
   },
 
