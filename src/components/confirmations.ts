@@ -1,5 +1,5 @@
 // What a delete confirmation says, built from what the Store says will be lost.
-import type { ExamDeletion, ExamPartCount, SubjectDeletion } from '../store/store'
+import type { ExamDeletion, ExamPartCount, MaterialDeletion, SubjectDeletion } from '../store/store'
 import { strings } from '../strings'
 
 export type Confirmation = {
@@ -25,6 +25,12 @@ export function examConfirmation(deletion: ExamDeletion): Confirmation {
     title: strings.deletion.exam.title,
     losses: [examItem(deletion), ...deletion.parts.map(partLine)],
   }
+}
+
+/** The confirmation for deleting a Material: the Material, then its Pages. */
+export function materialConfirmation({ material, pages }: MaterialDeletion): Confirmation {
+  const text = strings.deletion.material
+  return { title: text.title, losses: [text.item(material.name), text.pages(pages)] }
 }
 
 /** The confirmation for deleting a Subject: the Subject, then each of its Exams and what they hold. */

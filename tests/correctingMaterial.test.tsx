@@ -183,3 +183,80 @@ describe('renaming a Material', () => {
     expect(rename).toBeDisabled()
   })
 })
+
+describe('deleting a Material', () => {
+  const twoMaterials = [
+    {
+      subject: 'Matemáticas',
+      period: q1,
+      materials: [
+        { name: 'Unidad 1', pages: ['Fracciones.'] },
+        { name: 'Unidad 2', pages: ['Decimales.'] },
+      ],
+    },
+  ]
+
+  async function deleteMaterial(app: App) {
+    await app.user.click(thisMaterial().getByRole('button', { name: 'Eliminar material' }))
+    await app.user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Sí, eliminar' }))
+    await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+  }
+
+  it('asks first, naming the Material, and can be cancelled', async () => {
+    const app = await renderApp({ student: ana, subjects, exams: twoMaterials })
+    await openExam(app)
+    await openMaterial(app, 'Unidad 1')
+
+    await app.user.click(thisMaterial().getByRole('button', { name: 'Eliminar material' }))
+    const confirm = within(await screen.findByRole('alertdialog', { name: '¿Eliminar este material?' }))
+    expect(confirm.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'El material «Unidad 1»',
+      '1 página',
+    ])
+    await app.user.click(confirm.getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Unidad 1', level: 1 })).toBeInTheDocument()
+  })
+
+  it('removes it once confirmed, for good', async () => {
+    const app = await renderApp({ student: ana, subjects, exams: twoMaterials })
+    await openExam(app)
+    await openMaterial(app, 'Unidad 1')
+
+    await deleteMaterial(app)
+
+    const material = within(await screen.findByRole('region', { name: 'Material' }))
+    expect((await material.findAllByRole('link')).map((link) => link.textContent)).toEqual(['Unidad 2'])
+    await app.reopen()
+    await openExam(app)
+    const afterReopen = within(await screen.findByRole('region', { name: 'Material' }))
+    expect((await afterReopen.findAllByRole('link')).map((link) => link.textContent)).toEqual(['Unidad 2'])
+  })
+
+  it('removes its Pages, so they are never read', async () => {
+    server.use(openRouter.readPage.text('Texto del material correcto.'))
+    const app = await renderApp({ student: ana, subjects, exams: [{ subject: 'Matemáticas', period: q1 }] })
+    await openExam(app)
+    // No key yet, so its Page waits in line to be read.
+    await app.user.upload(screen.getByLabelText('Agregar material'), photo('equivocado.jpg'))
+    await openMaterial(app, 'equivocado')
+    await deleteMaterial(app)
+    expect(
+      await within(screen.getByRole('region', { name: 'Material' })).findByText('Aún no hay material para este examen.'),
+    ).toBeInTheDocument()
+
+    await app.user.click(screen.getByRole('link', { name: 'Ajustes' }))
+    await app.user.type(await screen.findByLabelText('Clave'), 'sk-or-v1-good')
+    await app.user.click(screen.getByRole('button', { name: 'Guardar clave' }))
+    await screen.findByText('Clave guardada.')
+    await app.user.click(screen.getByRole('link', { name: 'Inicio' }))
+    await openExam(app)
+    // Pages are read in the order they were added: a deleted one would go first.
+    await app.user.upload(screen.getByLabelText('Agregar material'), photo('correcto.jpg'))
+    await openMaterial(app, 'correcto')
+    await screen.findByText('Texto del material correcto.')
+
+    expect(openRouterRequests.filter((r) => r.url === `${OPENROUTER}/chat/completions`)).toHaveLength(1)
+  })
+})

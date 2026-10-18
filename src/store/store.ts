@@ -139,6 +139,9 @@ export type ExamPartCount = { kind: ExamPartKind; count: number }
 /** What deleting an Exam loses: the Exam and everything stored under it. */
 export type ExamDeletion = { exam: Exam; parts: ExamPartCount[] }
 
+/** What deleting a Material loses: the Material and its Pages. */
+export type MaterialDeletion = { material: Material; pages: number }
+
 /** What deleting a Subject loses: the Subject and each of its Exams, newest Period first. */
 export type SubjectDeletion = { subject: Subject; exams: ExamDeletion[] }
 
@@ -470,6 +473,23 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     /** Renames a Material, e.g. to "Unidad 3 – Fracciones". */
     async renameMaterial(id: number, name: string) {
       await db.materials.update(id, { name: name.trim() })
+    },
+
+    /** What deleting this Material would lose, for the confirmation; null if it doesn't exist. */
+    async materialDeletion(id: number): Promise<MaterialDeletion | null> {
+      const material = await db.materials.get(id)
+      if (!material) return null
+      return { material, pages: await db.pages.where('materialId').equals(id).count() }
+    },
+
+    /** Deletes a Material with its Pages and their scans. */
+    async deleteMaterial(id: number) {
+      await db.transaction('rw', [db.materials, db.pages, db.pageOriginals], async () => {
+        const pageIds = await db.pages.where('materialId').equals(id).primaryKeys()
+        await db.pageOriginals.bulkDelete(pageIds)
+        await db.pages.bulkDelete(pageIds)
+        await db.materials.delete(id)
+      })
     },
 
     /** A Material's Pages, in order. */

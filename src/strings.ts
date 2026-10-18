@@ -187,6 +187,12 @@ export const strings = {
       item: (subject: string) => `La materia ${subject}`,
       noExams: 'No tiene exámenes.',
     },
+    material: {
+      action: 'Eliminar material',
+      title: '¿Eliminar este material?',
+      item: (name: string) => `El material «${name}»`,
+      pages: (n: number) => (n === 1 ? '1 página' : `${n} páginas`),
+    },
     /** One line per kind of data under an Exam. */
     examParts: {
       materials: (n: number) => (n === 1 ? '1 material' : `${n} materiales`),
