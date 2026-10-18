@@ -785,6 +785,24 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
         .sort((a, b) => b.createdAt - a.createdAt || b.id - a.id)
     },
 
+    /**
+     * Deletes an In Progress quiz, with its Questions that no other quiz
+     * lists (a Mistakes Quiz reuses Questions of Submitted quizzes, which stay).
+     * A Submitted quiz is never deleted on its own.
+     */
+    async discardQuiz(quizId: number) {
+      await db.transaction('rw', [db.quizzes, db.questions], async () => {
+        const quiz = await db.quizzes.get(quizId)
+        if (!quiz || quiz.state !== 'inProgress') return
+        const others = await db.quizzes.where('examId').equals(quiz.examId).toArray()
+        const kept = new Set(
+          others.filter((other) => other.id !== quizId).flatMap((other) => other.items.map((item) => item.questionId)),
+        )
+        await db.quizzes.delete(quizId)
+        await db.questions.bulkDelete(quiz.items.map((item) => item.questionId).filter((id) => !kept.has(id)))
+      })
+    },
+
     /** Remembers which Question of an In Progress quiz she is on. */
     async moveInQuiz(quizId: number, position: number) {
       await db.transaction('rw', db.quizzes, async () => {

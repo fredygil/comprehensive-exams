@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { useServices } from '../../app/services'
 import type { Exam } from '../../store/store'
 import { strings } from '../../strings'
+import { DiscardQuiz } from './DiscardQuiz'
 
 /** The Exam's In Progress quizzes, to pick up where she left off. Nothing while there are none. */
 export function InProgressQuizzes({ exam }: { exam: Exam }) {
@@ -21,6 +22,7 @@ export function InProgressQuizzes({ exam }: { exam: Exam }) {
             {text.answered(quiz.items.filter((item) => item.chosenIndex !== null).length, quiz.items.length)}
           </span>
           <Link to={`/examenes/${exam.id}/quiz/${quiz.id}`}>{text.inProgress.resume}</Link>
+          <DiscardQuiz quizId={quiz.id} />
         </li>
       ))}
     </ul>

@@ -49,6 +49,11 @@ export function createQuizSession({ store }: { store: Store }) {
       await store.moveInQuiz(quizId, position)
     },
 
+    /** Throws away an In Progress quiz, so she can start fresh. */
+    async discard(quizId: number) {
+      await store.discardQuiz(quizId)
+    },
+
     /** Scores the quiz and makes it Submitted. Works offline. */
     async submit(quizId: number) {
       await store.submitQuiz(quizId, scoreOf)

@@ -244,6 +244,12 @@ export const strings = {
       started: (when: string) => `Empezado el ${when}`,
       resume: 'Continuar',
     },
+    discard: {
+      action: 'Descartar quiz',
+      title: '¿Descartar este quiz?',
+      item: (when: string) => `El quiz empezado el ${when}`,
+      confirm: 'Sí, descartar',
+    },
     /** "2 de 10 respondidas" */
     answered: (n: number, total: number) => `${n} de ${total} respondidas`,
   },

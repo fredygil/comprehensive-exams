@@ -20,6 +20,8 @@ export function DeleteWithConfirmation(props: {
   /** What to show in the confirmation; null if there is nothing to delete any more. */
   load: () => Promise<Confirmation | null>
   onDelete: () => Promise<void>
+  /** The confirm button's text; "Sí, eliminar" by default. */
+  confirm?: string
 }) {
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const titleId = useId()
@@ -49,7 +51,7 @@ export function DeleteWithConfirmation(props: {
       </div>
       <div className="row">
         <button type="button" className="danger" onClick={props.onDelete}>
-          {text.confirm}
+          {props.confirm ?? text.confirm}
         </button>
         <button type="button" autoFocus onClick={() => setConfirmation(null)}>
           {text.cancel}

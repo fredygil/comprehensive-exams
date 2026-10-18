@@ -85,3 +85,67 @@ describe('leaving a quiz halfway', () => {
     expect(screen.getByRole('radio', { name: 'Incorrecta 1a' })).toBeChecked()
   })
 })
+
+describe('discarding an In Progress quiz', () => {
+  it('asks first, and keeps it on "Cancelar"', async () => {
+    setClock('2026-10-18T09:05')
+    server.use(openRouter.practiceQuiz.questions(questions(3)))
+    const app = await renderApp(withMaterial())
+    await openExam(app)
+    await startQuiz(app, 3)
+    await choose(app, 'Correcta 1')
+    await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+
+    const practice = await practiceSection()
+    await app.user.click(await practice.findByRole('button', { name: 'Descartar quiz' }))
+    const confirm = within(await screen.findByRole('alertdialog', { name: '¿Descartar este quiz?' }))
+    expect(confirm.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'El quiz empezado el 18 de octubre de 2026, 9:05',
+      '1 de 3 respondidas',
+    ])
+    await app.user.click(confirm.getByRole('button', { name: 'Cancelar' }))
+
+    expect(await practice.findByRole('list', { name: 'Quizzes en curso' })).toBeInTheDocument()
+  })
+
+  it('removes it from the Exam on "Sí, descartar"', async () => {
+    server.use(openRouter.practiceQuiz.questions(questions(3)))
+    const app = await renderApp(withMaterial())
+    await openExam(app)
+    await startQuiz(app, 3)
+    const quizUrl = window.location.hash
+    await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+
+    const practice = await practiceSection()
+    await app.user.click(await practice.findByRole('button', { name: 'Descartar quiz' }))
+    await app.user.click(
+      within(await screen.findByRole('alertdialog', { name: '¿Descartar este quiz?' })).getByRole('button', {
+        name: 'Sí, descartar',
+      }),
+    )
+
+    await waitFor(() => expect(practice.queryByRole('list', { name: 'Quizzes en curso' })).not.toBeInTheDocument())
+    window.location.hash = quizUrl
+    await waitFor(() => expect(window.location.hash).toMatch(/^#\/examenes\/\d+$/))
+    expect(screen.queryByRole('heading', { name: 'Quiz de práctica' })).not.toBeInTheDocument()
+  })
+
+  it('can also be discarded from the quiz itself, back to the Exam', async () => {
+    server.use(openRouter.practiceQuiz.questions(questions(3)))
+    const app = await renderApp(withMaterial())
+    await openExam(app)
+    await startQuiz(app, 3)
+
+    await app.user.click(screen.getByRole('button', { name: 'Descartar quiz' }))
+    await app.user.click(
+      within(await screen.findByRole('alertdialog', { name: '¿Descartar este quiz?' })).getByRole('button', {
+        name: 'Sí, descartar',
+      }),
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })).toBeInTheDocument()
+    const practice = await practiceSection()
+    await practice.findByRole('button', { name: 'Practicar' })
+    expect(practice.queryByRole('list', { name: 'Quizzes en curso' })).not.toBeInTheDocument()
+  })
+})

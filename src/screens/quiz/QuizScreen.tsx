@@ -1,13 +1,15 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Link, Navigate, useParams } from 'react-router'
+import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import { useServices } from '../../app/services'
 import { strings } from '../../strings'
+import { DiscardQuiz } from './DiscardQuiz'
 import { QuizQuestions } from './QuizQuestions'
 import { QuizResults } from './QuizResults'
 
 /** A Practice Quiz: its Questions one per screen while In Progress; once Submitted, its Score and Feedback. */
 export function QuizScreen() {
   const { store } = useServices()
+  const navigate = useNavigate()
   const params = useParams()
   const examId = Number(params.examId)
   const quizId = Number(params.quizId)
@@ -29,7 +31,12 @@ export function QuizScreen() {
         <h1>{strings.quiz.title}</h1>
       </header>
       {quiz.state === 'inProgress' ? (
-        <QuizQuestions quiz={quiz} questions={questions} />
+        <>
+          <QuizQuestions quiz={quiz} questions={questions} />
+          <div>
+            <DiscardQuiz quizId={quiz.id} onDiscarded={() => navigate(`/examenes/${exam.id}`, { replace: true })} />
+          </div>
+        </>
       ) : (
         <QuizResults quiz={quiz} questions={questions} />
       )}
