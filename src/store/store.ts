@@ -166,7 +166,10 @@ export type Question = {
   examId: number
   /** Markdown with math, like every model-written text. */
   prompt: string
-  /** Always four, in the order shown (the app shuffled them). */
+  /**
+   * Always four, in the order its Practice Quiz shows them (the app shuffled
+   * them). A Mistakes Quiz shows them in an order of its own (QuizItem.optionOrder).
+   */
   options: string[]
   /** 0-based index into options. */
   correctIndex: number
@@ -187,8 +190,16 @@ export type QuizKind = 'practice' | 'mistakes'
 /** In Progress → Submitted. */
 export type QuizState = 'inProgress' | 'submitted'
 
-/** One Question of a quiz and the Student's answer (null while unanswered). */
-export type QuizItem = { questionId: number; chosenIndex: number | null }
+/**
+ * One Question of a quiz and the Student's answer (null while unanswered).
+ * `optionOrder` is the order this quiz shows the Question's options in, as
+ * indexes into Question.options (missing: as stored, which is how a Practice
+ * Quiz shows them). `chosenIndex` is a position in that shown order.
+ */
+export type QuizItem = { questionId: number; chosenIndex: number | null; optionOrder?: number[] }
+
+/** A Question of a Mistakes Quiz to store: which one, and the order to show its options in. */
+export type MistakesQuizItem = { questionId: number; optionOrder: number[] }
 
 /** A Practice Quiz (or Mistakes Quiz): its Questions, in order, with the Student's answers. */
 export type PracticeQuiz = {
@@ -211,7 +222,10 @@ export type PracticeQuiz = {
 /** A Question's new Mistake status, decided when its quiz is submitted. */
 export type MistakeChange = { questionId: number; isMistake: boolean }
 
-/** A quiz with its Questions, in the quiz's order. */
+/**
+ * A quiz with its Questions, in the quiz's order, each as this quiz shows it:
+ * options in the item's order, `correctIndex` a position in that order.
+ */
 export type QuizWithQuestions = { quiz: PracticeQuiz; questions: Question[] }
 
 /** A Material's Recognized Text: its read Pages, in order. */
@@ -458,7 +472,7 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     const quiz = await db.quizzes.get(quizId)
     if (!quiz) return null
     const questions = await db.questions.bulkGet(quiz.items.map((item) => item.questionId))
-    return { quiz, questions: questions.map((question) => question!) }
+    return { quiz, questions: questions.map((question, i) => asShown(question!, quiz.items[i])) }
   }
 
   /**
@@ -859,14 +873,15 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
 
     /**
      * Stores an In Progress Mistakes Quiz of these existing Questions of the
-     * Exam, in this order. Returns the quiz id.
+     * Exam, in this order, each showing its options in its own order.
+     * Returns the quiz id.
      */
-    async addMistakesQuiz(examId: number, questionIds: number[]): Promise<number> {
+    async addMistakesQuiz(examId: number, items: MistakesQuizItem[]): Promise<number> {
       return db.quizzes.add({
         examId,
         kind: 'mistakes',
         state: 'inProgress',
-        items: questionIds.map((questionId) => ({ questionId, chosenIndex: null })),
+        items: items.map(({ questionId, optionOrder }) => ({ questionId, chosenIndex: null, optionOrder })),
         score: null,
         mayRepeat: false,
         createdAt: Date.now(),
@@ -1043,6 +1058,17 @@ export type Store = ReturnType<typeof createStore>
 
 /** Dexie's errors for rows IndexedDB won't store (bad or duplicate keys, uncloneable values). */
 const STORE_REFUSED = new Set(['BulkError', 'ConstraintError', 'DataError', 'DataCloneError'])
+
+/** A Question as this quiz item shows it: its options in the item's order. */
+function asShown(question: Question, item: QuizItem): Question {
+  const order = item.optionOrder
+  if (!order) return question
+  return {
+    ...question,
+    options: order.map((index) => question.options[index]),
+    correctIndex: order.indexOf(question.correctIndex),
+  }
+}
 
 /** A singleton row as it goes into a backup: Settings lose the key. */
 function withoutKey(row: SingletonRow): SingletonRow {

@@ -137,16 +137,21 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
     /**
      * Makes an In Progress Mistakes Quiz of `count` (at most 20) of the
      * Exam's current Mistakes, picked and ordered at random. It reuses the
-     * Question records as they are (options in the order first shown), with
-     * no model call, so it works offline. Returns its id.
+     * Question records, with no model call, so it works offline, but shows
+     * their options in a new order, the correct ones placed as in a Practice
+     * Quiz. Returns its id.
      */
     async createMistakesQuiz(examId: number, count: number): Promise<number> {
       const mistakes = await store.mistakesFor(examId)
       const picked = shuffled(mistakes).slice(0, Math.min(count, MAX_QUESTIONS))
       if (picked.length === 0) throw new Error('createMistakesQuiz: the Exam has no Mistakes')
+      const positions = correctPositions(picked.length)
       return store.addMistakesQuiz(
         examId,
-        picked.map((question) => question.id),
+        picked.map((question, i) => ({
+          questionId: question.id,
+          optionOrder: orderWithCorrectAt(question.correctIndex, positions[i]),
+        })),
       )
     },
   }
@@ -173,12 +178,17 @@ function placeCorrectOption(
   question: GeneratedQuestion,
   position: number,
 ): { options: string[]; correctIndex: number } {
-  const correct = question.options[question.correctIndex]
-  const wrong = shuffled(question.options.filter((_, i) => i !== question.correctIndex))
-  const options = [...wrong.slice(0, position), correct, ...wrong.slice(position)].map((option) =>
-    option.trim(),
-  )
-  return { options, correctIndex: position }
+  const order = orderWithCorrectAt(question.correctIndex, position)
+  return { options: order.map((i) => question.options[i].trim()), correctIndex: position }
+}
+
+/**
+ * An order to show four options in (indexes into them) that puts the correct
+ * one (`correctIndex`) at `position` and the wrong ones around it at random.
+ */
+function orderWithCorrectAt(correctIndex: number, position: number): number[] {
+  const wrong = shuffled([...Array(OPTION_COUNT).keys()].filter((i) => i !== correctIndex))
+  return [...wrong.slice(0, position), correctIndex, ...wrong.slice(position)]
 }
 
 /**

@@ -138,6 +138,11 @@ function shownQuestion() {
   return Number(/Pregunta número (\d+)/.exec(screen.getByRole('region', { name: /^Pregunta \d+ de/ }).textContent!)![1])
 }
 
+/** The options of the Question on screen, in the order shown. */
+function optionTexts() {
+  return screen.getAllByRole('radio').map((radio) => radio.closest('label')!.textContent)
+}
+
 describe('taking a Mistakes Quiz', () => {
   it('reuses her Mistakes, with no network, and is labelled as a Mistakes Quiz', async () => {
     const app = await tablet()
@@ -198,6 +203,32 @@ describe('taking a Mistakes Quiz', () => {
 
     const mistakes = within(await screen.findByRole('region', { name: 'Quiz de errores' }))
     expect(mistakes.getByText('Tienes 1 pregunta por repasar.')).toBeInTheDocument()
+  })
+
+  it('shows each Mistake with its options in a new order, kept while the quiz is In Progress', async () => {
+    const app = await tablet()
+    await openExam(app)
+    await practice(app, [false])
+
+    // Where "Correcta 1" is among the options, in a dozen Mistakes Quizzes of it.
+    const positions: number[] = []
+    for (let i = 0; i < 12; i++) {
+      await startMistakesQuiz(app, 1)
+      positions.push(optionTexts().indexOf('Correcta 1'))
+      await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+      await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+    }
+    expect(new Set(positions).size).toBeGreaterThan(1)
+
+    // An In Progress Mistakes Quiz keeps its order when she comes back to it.
+    await startMistakesQuiz(app, 1)
+    const shown = optionTexts()
+    await app.reopen()
+    await openExam(app)
+    const inProgress = within(await screen.findByRole('list', { name: 'Quizzes en curso' }))
+    await app.user.click(inProgress.getAllByRole('link', { name: 'Continuar' })[0])
+    await screen.findByRole('heading', { name: 'Pregunta 1 de 1' })
+    expect(optionTexts()).toEqual(shown)
   })
 
   it('takes as many Mistakes as she chose', async () => {
