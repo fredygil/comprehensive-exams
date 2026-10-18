@@ -99,6 +99,7 @@ label,
 
 input,
 select,
+textarea,
 button {
   font: inherit;
   min-height: 48px; /* comfortable touch target */
@@ -306,6 +307,16 @@ button.danger-outline {
 
 .rich-text {
   overflow-wrap: anywhere;
+}
+
+/* Correcting a Page's Recognized Text (Markdown with $..$ math). */
+.page-editor {
+  width: 100%;
+  min-height: 20rem;
+  box-sizing: border-box;
+  font-family: ui-monospace, monospace;
+  line-height: 1.5;
+  resize: vertical;
 }
 
 .rich-text .katex-display {

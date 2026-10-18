@@ -55,6 +55,7 @@ type ExamRow = {
   subjectId: number
   periodId: number
   examDate: IsoDate | null
+  materialRevision: number
 }
 
 /** An Exam as the screens see it: with its Subject and Period. */
@@ -63,6 +64,11 @@ export type Exam = {
   subject: Subject
   period: Period
   examDate: IsoDate | null
+  /**
+   * Goes up whenever the Exam's Material changes: added, deleted, or its
+   * Recognized Text edited. A Summary built at an older revision is Outdated.
+   */
+  materialRevision: number
 }
 
 export type ExamDraft = {
@@ -191,6 +197,9 @@ export type ExamPartCount = { kind: ExamPartKind; count: number }
 /** What deleting an Exam loses: the Exam and everything stored under it. */
 export type ExamDeletion = { exam: Exam; parts: ExamPartCount[] }
 
+/** What deleting a Material loses: the Material and its Pages. */
+export type MaterialDeletion = { material: Material; pages: number }
+
 /** What deleting a Subject loses: the Subject and each of its Exams, newest Period first. */
 export type SubjectDeletion = { subject: Subject; exams: ExamDeletion[] }
 
@@ -301,6 +310,7 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       subject: subjects[i]!,
       period: periods[i]!,
       examDate: row.examDate,
+      materialRevision: row.materialRevision,
     }))
   }
 
@@ -308,6 +318,18 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
   async function getExam(id: number): Promise<Exam | null> {
     const row = await db.exams.get(id)
     return row ? (await withSubjectAndPeriod([row]))[0] : null
+  }
+
+  /** Marks the Exam's Material as changed; call inside a transaction that includes db.exams. */
+  function bumpMaterialRevision(examId: number) {
+    return db.exams.where('id').equals(examId).modify((exam) => {
+      exam.materialRevision += 1
+    })
+  }
+
+  /** The Page, unless the Student has edited it (then reading must leave it alone). */
+  function readablePage(pageId: number) {
+    return db.pages.where('id').equals(pageId).filter((page) => !page.editedByStudent)
   }
 
   async function getPage(id: number): Promise<Page | null> {
@@ -456,7 +478,12 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
           .equals([exam.subjectId, periodId])
           .count()
         if (duplicate) throw new DuplicateExamError()
-        return db.exams.add({ subjectId: exam.subjectId, periodId, examDate: exam.examDate })
+        return db.exams.add({
+          subjectId: exam.subjectId,
+          periodId,
+          examDate: exam.examDate,
+          materialRevision: 0,
+        })
       })
     },
 
@@ -493,7 +520,7 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
      * Returns their ids. Reading them is the Reading Queue's job.
      */
     async addMaterials(examId: number, drafts: MaterialDraft[]): Promise<number[]> {
-      return db.transaction('rw', [db.materials, db.pages, db.pageOriginals], async () => {
+      return db.transaction('rw', [db.exams, db.materials, db.pages, db.pageOriginals], async () => {
         const ids: number[] = []
         for (const draft of drafts) {
           const materialId = await db.materials.add({
@@ -520,6 +547,7 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
           }
           ids.push(materialId)
         }
+        if (ids.length) await bumpMaterialRevision(examId)
         return ids
       })
     },
@@ -542,6 +570,31 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       return pages.some((page) => page.status === 'read')
     },
 
+    /** Renames a Material, e.g. to "Unidad 3 – Fracciones". */
+    async renameMaterial(id: number, name: string) {
+      await db.materials.update(id, { name: name.trim() })
+    },
+
+    /** What deleting this Material would lose, for the confirmation; null if it doesn't exist. */
+    async materialDeletion(id: number): Promise<MaterialDeletion | null> {
+      const material = await db.materials.get(id)
+      if (!material) return null
+      return { material, pages: await db.pages.where('materialId').equals(id).count() }
+    },
+
+    /** Deletes a Material with its Pages and their scans. */
+    async deleteMaterial(id: number) {
+      await db.transaction('rw', [db.exams, db.materials, db.pages, db.pageOriginals], async () => {
+        const material = await db.materials.get(id)
+        if (!material) return
+        const pageIds = await db.pages.where('materialId').equals(id).primaryKeys()
+        await db.pageOriginals.bulkDelete(pageIds)
+        await db.pages.bulkDelete(pageIds)
+        await db.materials.delete(id)
+        await bumpMaterialRevision(material.examId)
+      })
+    },
+
     /** A Material's Pages, in order. */
     async materialPages(materialId: number): Promise<Page[]> {
       const pages = await db.pages.where('materialId').equals(materialId).toArray()
@@ -557,7 +610,23 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       return row ? { bytes: new Uint8Array(row.bytes), mime: row.mime } : null
     },
 
-    // Page reading (the Reading Queue). Each is a no-op if the Page is gone.
+    /**
+     * The Student's correction of a read Page's Recognized Text. From now on
+     * it is what every Study Aid and Practice Quiz uses, and reading never
+     * overwrites it.
+     */
+    async editRecognizedText(pageId: number, recognizedText: string) {
+      await db.transaction('rw', [db.exams, db.materials, db.pages], async () => {
+        const page = await db.pages.get(pageId)
+        const material = page && (await db.materials.get(page.materialId))
+        if (!material || page.recognizedText === recognizedText) return
+        await db.pages.update(pageId, { recognizedText, editedByStudent: true })
+        await bumpMaterialRevision(material.examId)
+      })
+    },
+
+    // Page reading (the Reading Queue). Each is a no-op if the Page is gone,
+    // or if the Student has edited it: reading never overwrites her text.
 
     /** The next Page waiting to be read, oldest first; null when none is. */
     async nextUnreadPage(): Promise<Page | null> {
@@ -565,21 +634,21 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     },
 
     async markPageReading(pageId: number) {
-      await db.pages.update(pageId, { status: 'reading', failure: null })
+      await readablePage(pageId).modify({ status: 'reading', failure: null })
     },
 
     /** Stores what the reading model read on the Page. */
     async markPageRead(pageId: number, recognizedText: string) {
-      await db.pages.update(pageId, { status: 'read', recognizedText, failure: null })
+      await readablePage(pageId).modify({ status: 'read', recognizedText, failure: null })
     },
 
     async markPageFailed(pageId: number, failure: GatewayErrorKind) {
-      await db.pages.update(pageId, { status: 'failed', failure })
+      await readablePage(pageId).modify({ status: 'failed', failure })
     },
 
     /** Puts a Page back in line to be read. */
     async markPageUnread(pageId: number) {
-      await db.pages.update(pageId, { status: 'unread', failure: null })
+      await readablePage(pageId).modify({ status: 'unread', failure: null })
     },
 
     /** Pages left 'reading' when the app was closed go back to 'unread'. */
