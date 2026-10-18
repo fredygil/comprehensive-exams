@@ -2,6 +2,7 @@
 // read it from here, so an English UI later is a translation of this file.
 // Vocabulary follows GLOSSARY.md.
 import type { GatewayErrorKind } from './gateway/errors'
+import type { Job } from './settings/models'
 
 function formatUsd(usd: number) {
   return `$${usd.toFixed(2)}`
@@ -52,6 +53,20 @@ export const strings = {
       noLimit: 'Sin límite de gasto.',
       limit: (usd: number) => `Límite de gasto: ${formatUsd(usd)}.`,
       remaining: (usd: number) => `Disponible: ${formatUsd(usd)}.`,
+    },
+    models: {
+      title: 'Modelos',
+      help: 'El modelo de OpenRouter que se usa para cada tarea.',
+      jobs: {
+        readPages: 'Leer páginas',
+        summary: 'Resumen',
+        practiceQuiz: 'Quiz de práctica',
+        explainer: 'Explicaciones',
+      } satisfies Record<Job, string>,
+      defaultHint: (model: string) => `Predeterminado: ${model}`,
+      save: 'Guardar modelos',
+      saved: 'Modelos guardados.',
+      reset: 'Usar los predeterminados',
     },
   },
 

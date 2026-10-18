@@ -4,7 +4,7 @@
 // Reads are plain async functions, so the UI can wrap them in
 // `useLiveQuery(() => store.getStudent())` and re-render when data changes.
 import Dexie, { type EntityTable } from 'dexie'
-import { DEFAULT_MODELS, type Job } from '../settings/models'
+import { DEFAULT_MODELS, JOBS, type Job } from '../settings/models'
 
 export type GradeLevel = number
 
@@ -18,10 +18,16 @@ export type Settings = {
   models: Record<Job, string>
 }
 
+// What is actually written: models holds only the jobs changed from the default.
+type StoredSettings = {
+  openRouterKey?: string | null
+  models?: Partial<Record<Job, string>>
+}
+
 // Singleton records (one Student, one Settings) live in one table, keyed by id.
 type SingletonRow =
   | { id: 'student'; value: Student }
-  | { id: 'settings'; value: Partial<Settings> }
+  | { id: 'settings'; value: StoredSettings }
 
 class Database extends Dexie {
   singletons!: EntityTable<SingletonRow, 'id'>
@@ -41,12 +47,12 @@ export const DEFAULT_DB_NAME = 'comprehensive-exams'
 export function createStore(dbName: string = DEFAULT_DB_NAME) {
   const db = new Database(dbName)
 
-  async function readSettings(): Promise<Partial<Settings>> {
+  async function readSettings(): Promise<StoredSettings> {
     const row = await db.singletons.get('settings')
     return row?.id === 'settings' ? row.value : {}
   }
 
-  async function writeSettings(change: Partial<Settings>) {
+  async function writeSettings(change: StoredSettings) {
     await db.transaction('rw', db.singletons, async () => {
       const current = await readSettings()
       await db.singletons.put({ id: 'settings', value: { ...current, ...change } })
@@ -83,8 +89,22 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       await writeSettings({ openRouterKey: trimmed ? trimmed : null })
     },
 
+    /**
+     * Only models that differ from the defaults are stored, so a job the
+     * parent never changed follows DEFAULT_MODELS if the defaults change.
+     * A blank model means "use the default".
+     */
     async saveModels(models: Record<Job, string>) {
-      await writeSettings({ models })
+      const overrides: Partial<Record<Job, string>> = {}
+      for (const job of JOBS) {
+        const model = models[job].trim()
+        if (model && model !== DEFAULT_MODELS[job]) overrides[job] = model
+      }
+      await writeSettings({ models: overrides })
+    },
+
+    async resetModels() {
+      await writeSettings({ models: {} })
     },
 
     async close() {

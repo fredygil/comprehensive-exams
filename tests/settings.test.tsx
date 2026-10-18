@@ -132,3 +132,48 @@ describe('Settings: the OpenRouter key', () => {
     expect(section('Clave de OpenRouter').getByRole('button', { name: 'Probar clave' })).toBeDisabled()
   })
 })
+
+describe('Settings: models', () => {
+  it('shows the default model for each job', async () => {
+    const app = await renderApp({ student: ana })
+    await openSettings(app)
+
+    const models = section('Modelos')
+    expect(models.getByLabelText('Leer páginas')).toHaveValue('google/gemini-3.1-flash-lite')
+    expect(models.getByLabelText('Resumen')).toHaveValue('anthropic/claude-haiku-5.5')
+    expect(models.getByLabelText('Quiz de práctica')).toHaveValue('anthropic/claude-haiku-5.5')
+    expect(models.getByLabelText('Explicaciones')).toHaveValue('anthropic/claude-haiku-5.5')
+  })
+
+  it('keeps a changed model across launches', async () => {
+    const app = await renderApp({ student: ana })
+    await openSettings(app)
+
+    const models = section('Modelos')
+    await app.user.clear(models.getByLabelText('Leer páginas'))
+    await app.user.type(models.getByLabelText('Leer páginas'), 'google/gemini-3.8-flash')
+    await app.user.click(models.getByRole('button', { name: 'Guardar modelos' }))
+    await models.findByText('Modelos guardados.')
+
+    await app.reopen()
+    await openSettings(app)
+    expect(section('Modelos').getByLabelText('Leer páginas')).toHaveValue('google/gemini-3.8-flash')
+    expect(section('Modelos').getByLabelText('Resumen')).toHaveValue('anthropic/claude-haiku-5.5')
+  })
+
+  it('can go back to the defaults', async () => {
+    const app = await renderApp({ student: ana })
+    await openSettings(app)
+
+    const models = section('Modelos')
+    await app.user.clear(models.getByLabelText('Resumen'))
+    await app.user.type(models.getByLabelText('Resumen'), 'openai/gpt-5.6-luna')
+    await app.user.click(models.getByRole('button', { name: 'Guardar modelos' }))
+    await app.user.click(models.getByRole('button', { name: 'Usar los predeterminados' }))
+    expect(models.getByLabelText('Resumen')).toHaveValue('anthropic/claude-haiku-5.5')
+
+    await app.reopen()
+    await openSettings(app)
+    expect(section('Modelos').getByLabelText('Resumen')).toHaveValue('anthropic/claude-haiku-5.5')
+  })
+})
