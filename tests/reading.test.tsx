@@ -225,7 +225,10 @@ describe('a Page the Student corrected', () => {
     await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
     await openMaterial(app, 'b')
     await app.user.click(await text().findByRole('button', { name: 'Reintentar' }))
-    expect(await text().findByRole('alert')).toHaveTextContent('La lectura de páginas está en pausa.')
+    // findByText, not findByRole('alert'): b's old failure alert is still there for a moment.
+    expect(
+      (await text().findByText(/La lectura de páginas está en pausa\./)).closest('[role="alert"]'),
+    ).not.toBeNull()
     server.use(openRouter.readPage.text('Texto de b.'))
     act(() => void window.dispatchEvent(new Event('online')))
     expect(await text().findByText('Texto de b.')).toBeInTheDocument()
