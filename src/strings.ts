@@ -1,8 +1,8 @@
 // Every piece of UI text, in Spanish. Components never hard-code copy; they
 // read it from here, so an English UI later is a translation of this file.
 // Vocabulary follows GLOSSARY.md.
-import type { GatewayErrorKind } from './gateway/errors'
-import type { Job } from './settings/models'
+import type { GatewayErrorKind } from './gateway/errors.ts'
+import type { Job } from './settings/models.ts'
 
 function formatUsd(usd: number) {
   return `$${usd.toFixed(2)}`

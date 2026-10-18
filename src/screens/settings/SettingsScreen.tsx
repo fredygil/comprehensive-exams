@@ -13,13 +13,13 @@ export function SettingsScreen({ student }: { student: Student }) {
   return (
     <main className="screen">
       <h1>{strings.settings.title}</h1>
-      <StudentSection student={student} />
-      {settings && (
-        <>
-          <KeySection savedKey={settings.openRouterKey} />
-          <ModelsSection savedModels={settings.models} />
-        </>
-      )}
+      <div className="settings-grid">
+        <div className="stack">
+          <StudentSection student={student} />
+          {settings && <KeySection savedKey={settings.openRouterKey} />}
+        </div>
+        {settings && <ModelsSection savedModels={settings.models} />}
+      </div>
     </main>
   )
 }
