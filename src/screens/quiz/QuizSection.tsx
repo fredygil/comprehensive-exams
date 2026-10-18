@@ -11,23 +11,39 @@ import { strings } from '../../strings'
 const COUNTS = Array.from({ length: 20 }, (_, i) => i + 1)
 const DEFAULT_COUNT = 10
 
-/** "Practicar" on the Exam screen: how many Questions, then a new Practice Quiz. */
+/**
+ * "Practicar" on the Exam screen: how many Questions and, when the Exam has
+ * several Materials, which ones (all by default), then a new Practice Quiz.
+ */
 export function QuizSection({ exam }: { exam: Exam }) {
   const { store, quizMaker } = useServices()
   const navigate = useNavigate()
   const hasKey = useHasKey()
   const hasReadPages = useLiveQuery(() => store.examHasReadPages(exam.id), [store, exam.id])
+  const materials = useLiveQuery(() => store.examMaterials(exam.id), [store, exam.id])
   const [count, setCount] = useState(DEFAULT_COUNT)
+  // Left-out Materials rather than chosen ones, so Material added meanwhile is included.
+  const [excluded, setExcluded] = useState<ReadonlySet<number>>(new Set())
   const [creating, setCreating] = useState(false)
   const [failure, setFailure] = useState<GatewayErrorKind | null>(null)
   const text = strings.quiz
+
+  const chosen = materials?.filter((material) => !excluded.has(material.id)) ?? []
+  const noneChosen = materials !== undefined && materials.length > 0 && chosen.length === 0
+
+  function toggle(materialId: number) {
+    const next = new Set(excluded)
+    if (!next.delete(materialId)) next.add(materialId)
+    setExcluded(next)
+  }
 
   async function start(event: FormEvent) {
     event.preventDefault()
     setCreating(true)
     setFailure(null)
     try {
-      const quizId = await quizMaker.createPracticeQuiz(exam.id, { count })
+      const materialIds = excluded.size ? chosen.map((material) => material.id) : undefined
+      const quizId = await quizMaker.createPracticeQuiz(exam.id, { count, materialIds })
       navigate(`/examenes/${exam.id}/quiz/${quizId}`)
     } catch (error) {
       if (!(error instanceof GatewayError)) throw error
@@ -38,8 +54,23 @@ export function QuizSection({ exam }: { exam: Exam }) {
 
   return (
     <Section title={text.section}>
-      {hasReadPages !== undefined && hasKey !== undefined && (
+      {hasReadPages !== undefined && hasKey !== undefined && materials !== undefined && (
         <div className="stack">
+          {materials.length > 1 && (
+            <fieldset className="material-picker">
+              <legend>{text.materials}</legend>
+              {materials.map((material) => (
+                <label key={material.id}>
+                  <input
+                    type="checkbox"
+                    checked={!excluded.has(material.id)}
+                    onChange={() => toggle(material.id)}
+                  />
+                  {material.name}
+                </label>
+              ))}
+            </fieldset>
+          )}
           <form onSubmit={start} className="row">
             <label>
               {text.count}
@@ -51,7 +82,7 @@ export function QuizSection({ exam }: { exam: Exam }) {
                 ))}
               </select>
             </label>
-            <button type="submit" disabled={!hasReadPages || !hasKey || creating}>
+            <button type="submit" disabled={!hasReadPages || !hasKey || noneChosen || creating}>
               {text.start}
             </button>
           </form>
@@ -66,6 +97,7 @@ export function QuizSection({ exam }: { exam: Exam }) {
             </p>
           )}
           {!hasReadPages && <p className="hint">{text.needsReadPages}</p>}
+          {noneChosen && <p className="hint">{text.needsMaterial}</p>}
           {hasKey === false && <NeedsKeyNotice />}
         </div>
       )}

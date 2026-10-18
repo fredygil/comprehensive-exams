@@ -208,6 +208,9 @@ export const strings = {
     start: 'Practicar',
     creating: 'Creando las preguntas…',
     needsReadPages: 'Para practicar, primero agrega material y espera a que se lea al menos una página.',
+    /** The Material picker: which Materials the quiz covers (all by default). */
+    materials: 'Material del quiz',
+    needsMaterial: 'Elige al menos un material.',
     title: 'Quiz de práctica',
     /** "Pregunta 3 de 10" */
     questionOf: (n: number, total: number) => `Pregunta ${n} de ${total}`,

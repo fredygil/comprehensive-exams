@@ -445,3 +445,25 @@ button.danger-outline {
 .answer.right .label {
   color: var(--ok);
 }
+
+/* The Practice Quiz's Material picker: one checkbox per Material. */
+.material-picker {
+  border: 1px solid var(--muted);
+  border-radius: var(--radius);
+  margin: 0;
+  padding: 0.5rem 1rem 0.75rem;
+}
+
+.material-picker label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+}
+
+.material-picker input {
+  min-height: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}

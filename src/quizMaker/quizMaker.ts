@@ -77,17 +77,23 @@ export type QuizMakerOptions = {
 export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
   return {
     /**
-     * Generates `count` (1–20) Questions from all of the Exam's read Pages
-     * and stores them as a new In Progress Practice Quiz. Returns its id.
+     * Generates `count` (1–20) Questions from the read Pages of the chosen
+     * Materials (`materialIds`; all of the Exam's by default) and stores them
+     * as a new In Progress Practice Quiz. Returns its id.
      * Gateway failures are thrown as GatewayError; a reply with no usable
      * Question is BadResponse. The model may write fewer than asked; extra
      * ones are dropped.
      */
-    async createPracticeQuiz(examId: number, { count }: { count: number }): Promise<number> {
+    async createPracticeQuiz(
+      examId: number,
+      { count, materialIds }: { count: number; materialIds?: number[] },
+    ): Promise<number> {
       const exam = await store.getExam(examId)
       const student = await store.getStudent()
       if (!exam || !student) throw new Error('createPracticeQuiz: no such Exam, or no Student')
-      const sources = await store.examRecognizedText(examId)
+      const sources = (await store.examRecognizedText(examId)).filter(
+        ({ material }) => !materialIds || materialIds.includes(material.id),
+      )
       const materials = new Map<string, Material>(
         sources.map(({ material }) => [String(material.id), material]),
       )
