@@ -123,3 +123,63 @@ describe('correcting a Page', () => {
     expect(openRouterRequests.filter((r) => r.url === `${OPENROUTER}/chat/completions`)).toHaveLength(2)
   })
 })
+
+function thisMaterial() {
+  return within(screen.getByRole('region', { name: 'Este material' }))
+}
+
+describe('renaming a Material', () => {
+  it('shows the new name everywhere, after reopening too', async () => {
+    const app = await renderApp({
+      student: ana,
+      subjects,
+      exams: [
+        {
+          subject: 'Matemáticas',
+          period: q1,
+          materials: [
+            { name: 'IMG_2041', pages: ['Fracciones.'] },
+            { name: 'IMG_2042', pages: ['Decimales.'] },
+          ],
+        },
+      ],
+    })
+    await openExam(app)
+    await openMaterial(app, 'IMG_2041')
+
+    const name = thisMaterial().getByLabelText('Nombre')
+    expect(name).toHaveValue('IMG_2041')
+    await app.user.clear(name)
+    await app.user.type(name, '  Unidad 3 – Fracciones ')
+    await app.user.click(thisMaterial().getByRole('button', { name: 'Cambiar nombre' }))
+
+    expect(await screen.findByRole('heading', { name: 'Unidad 3 – Fracciones', level: 1 })).toBeInTheDocument()
+    await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+    const material = within(await screen.findByRole('region', { name: 'Material' }))
+    expect((await material.findAllByRole('link')).map((link) => link.textContent)).toEqual([
+      'Unidad 3 – Fracciones',
+      'IMG_2042',
+    ])
+
+    await app.reopen()
+    await openExam(app)
+    await openMaterial(app, 'Unidad 3 – Fracciones')
+    expect(await screen.findByText('Fracciones.')).toBeInTheDocument()
+  })
+
+  it('needs a name', async () => {
+    const app = await renderApp({
+      student: ana,
+      subjects,
+      exams: [{ subject: 'Matemáticas', period: q1, materials: [{ name: 'IMG_2041', pages: ['Fracciones.'] }] }],
+    })
+    await openExam(app)
+    await openMaterial(app, 'IMG_2041')
+
+    const rename = thisMaterial().getByRole('button', { name: 'Cambiar nombre' })
+    expect(rename).toBeDisabled()
+    await app.user.clear(thisMaterial().getByLabelText('Nombre'))
+    await app.user.type(thisMaterial().getByLabelText('Nombre'), '   ')
+    expect(rename).toBeDisabled()
+  })
+})

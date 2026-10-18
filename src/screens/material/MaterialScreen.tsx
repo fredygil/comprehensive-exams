@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
 import { useServices } from '../../app/services'
 import { strings } from '../../strings'
+import { ManageMaterialSection } from './ManageMaterialSection'
 import { PageView } from './PageView'
 
 /** One Material: a Page's original next to its Recognized Text. */
@@ -33,6 +34,7 @@ export function MaterialScreen() {
         <h1>{material.name}</h1>
       </header>
       {page && <PageView key={page.id} page={page} />}
+      <ManageMaterialSection material={material} />
     </main>
   )
 }

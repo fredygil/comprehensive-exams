@@ -467,6 +467,11 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       return (await db.materials.get(id)) ?? null
     },
 
+    /** Renames a Material, e.g. to "Unidad 3 – Fracciones". */
+    async renameMaterial(id: number, name: string) {
+      await db.materials.update(id, { name: name.trim() })
+    },
+
     /** A Material's Pages, in order. */
     async materialPages(materialId: number): Promise<Page[]> {
       const pages = await db.pages.where('materialId').equals(materialId).toArray()

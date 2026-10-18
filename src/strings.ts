@@ -150,6 +150,12 @@ export const strings = {
     unsupported: (fileName: string) =>
       `No se pudo agregar «${fileName}»: solo se pueden agregar fotos JPG o PNG.`,
     backToExam: (subject: string) => `Volver a ${subject}`,
+    /** Renaming and deleting one Material. */
+    manage: {
+      title: 'Este material',
+      name: 'Nombre',
+      rename: 'Cambiar nombre',
+    },
     page: {
       /** The alt text of a Page's original scan: "Página 1: original". */
       original: (number: number) => `Página ${number}: original`,
