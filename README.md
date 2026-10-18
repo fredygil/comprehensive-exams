@@ -28,18 +28,20 @@ src/
   app/
     App.tsx              router (hash routes) + first-run gate; starts/stops the Reading Queue
     Layout.tsx           header and nav around every screen
-    services.tsx         AppServices {store, gateway, readingQueue}: created per launch, read with useServices()
+    services.tsx         AppServices {store, gateway, readingQueue, quizMaker, quizSession}: created per launch, read with useServices()
     config.ts            base path, public URL, attribution title
     persistentStorage.ts navigator.storage.persist() on launch
   store/store.ts         Store: the only module that touches IndexedDB (Dexie)
   gateway/               Model Gateway: the only module that talks to OpenRouter
-    gateway.ts           operations (checkKey, readPage) + shared `send` and `complete`
+    gateway.ts           operations (checkKey, readPage, generateStructured) + shared `send` and `complete`
     errors.ts            GatewayError kinds: NoKey, InvalidKey, NoCredit, Offline, RateLimited, Unavailable, BadResponse
     dataUrl.ts           bytes → data URL (image and file parts)
   prompts/               Prompt Builder: context.ts (Language, Grade Level, Markdown+math rules) + one file per prompt
   pageSplitter/          Page Splitter: picked file → MaterialDraft (photos so far)
   pageViewer/            Page Viewer: a Page's original (photos: <img>)
   readingQueue/          Reading Queue: reads unread Pages one at a time, records status in the Store
+  quizMaker/             Quiz Maker: generates a Practice Quiz's Questions and places the correct options
+  quizSession/           Quiz Session: answers and submits a quiz; Score and Feedback (offline)
   settings/models.ts     AI jobs and their default models
   exams/calendar.ts      school year of a day, days until an Exam Date (local time)
   components/            shared UI (Section, NeedsKey, RichText, ExamList, DeleteWithConfirmation + confirmations, ...)
@@ -59,6 +61,14 @@ New modules from spec #1 (Page Splitter, Reading Queue, Quiz Maker, ...) get the
 - **Prompt Builder**: every prompt takes a `PromptContext` (`{ language, gradeLevel }`); shared lines (`studentLine`, `MARKDOWN_WITH_MATH`) are in `src/prompts/context.ts`.
 - **Reading Queue**: `start()` (idempotent) reads every unread Page in order; `stop()` on app close. A failure marks the Page `failed` with its error kind; `NoKey` leaves it `unread` and stops. Pages left `reading` are requeued on the first start.
 - **RichText** (`src/components/RichText.tsx`) renders Markdown with `$`/`$$` math (KaTeX), and rewrites `\(..\)`/`\[..\]`. Use it for every model-written text.
+
+### Practice Quizzes
+
+- **Store**: a `Question` (examId, prompt, four `options` in the order shown, `correctIndex`, `explanation`, `sourceMaterialId` + `sourceMaterialName` snapshot, `isMistake`) belongs to its Exam, not to a quiz or Material, so deleting a Material leaves it intact. A `PracticeQuiz` (kind `practice` | `mistakes`, state `inProgress` → `submitted`, `items: [{ questionId, chosenIndex | null }]`, `score`, `mayRepeat`, `createdAt`, `submittedAt`) lists its Questions in order. `getQuiz(id)` returns `{ quiz, questions }`. `examRecognizedText(examId)` gives the read Pages' text per Material (what quizzes and Study Aids are made from). The quizzes are the `quizzes` Exam part.
+- **Model Gateway** `generateStructured(job, prompt, schema)`: `schema` is `{ name, schema, parse }` (`StructuredSchema<T>`); the request uses strict `json_schema` and `provider.require_parameters`. JSON that doesn't parse, or that `parse` throws on, is `BadResponse`. Check counts and ranges in `parse`, not in the schema.
+- **Quiz Maker** `createPracticeQuiz(examId, { count })`: one request with all read Recognized Text (Materials labelled by id); keeps well-formed Questions from the Exam's own Materials, up to `count`. It places the correct option itself: each run of four Questions uses every position once, so the position always varies.
+- **Quiz Session**: `answer(quizId, position, chosenIndex)` saves at once; `submit(quizId)` scores in the Store's transaction (`scoreOf`), with no network. `feedbackOf({ quiz, questions })` lists the wrong (or unanswered) ones for the results screen.
+- **Screens**: "Practicar" section on the Exam screen (`src/screens/quiz/QuizSection.tsx`), and `#/examenes/:examId/quiz/:quizId` (`QuizScreen`: `QuizQuestions` while In Progress, `QuizResults` once Submitted).
 
 ### Data under an Exam
 
@@ -93,7 +103,7 @@ it('shows the spend limit', async () => {
   - `reopen()`: closes the app (unmount + close the Store) and launches it again on the same database at the start URL. Use it for anything that must survive a restart;
   - `storage`: the fake `navigator.storage` (`persist` / `persisted` are `vi.fn`s).
   - `options.student` / `options.openRouterKey` / `options.subjects` / `options.exams` are preconditions written through the Store's public API before launch. `exams[].materials: [{ name: 'Unidad 1', pages: ['# Fracciones ...'] }]` adds photo Material whose Pages are already read (one Recognized Text per Page), so no reading request is sent. Use them to skip setup that isn't what the test is about; drive the behaviour under test through the screens. Add more options here as later tickets need them (always via Store methods, never raw tables).
-- **MSW** (`tests/harness/openRouter.ts`): every test starts with `defaultHandlers` (a working key, no limit). Override per test with `server.use(openRouter.key.invalid())`, `.status(402)`, `.offline()` and so on. Unhandled requests fail the test, so add a scripted response to `openRouter` for each new endpoint or operation. Page reading is `openRouter.readPage.text(md)` / `.texts([md1, md2])` / `.status(401)` / `.cutOff()` / `.offline()`. Chat completions are told apart with `chatHandler(matches, respond)`: a handler only answers the requests it matches (e.g. readPage = has an image/file part) and lets others fall through, so add e.g. `openRouter.structured.*` the same way. `chatCompletion(content)` builds the response body.
+- **MSW** (`tests/harness/openRouter.ts`): every test starts with `defaultHandlers` (a working key, no limit). Override per test with `server.use(openRouter.key.invalid())`, `.status(402)`, `.offline()` and so on. Unhandled requests fail the test, so add a scripted response to `openRouter` for each new endpoint or operation. Page reading is `openRouter.readPage.text(md)` / `.texts([md1, md2])` / `.status(401)` / `.cutOff()` / `.offline()`. Chat completions are told apart with `chatHandler(matches, respond)`: a handler only answers the requests it matches (e.g. readPage = has an image/file part) and lets others fall through. Structured JSON is matched by its schema name with `asksForJson(name)`: quiz generation is `openRouter.practiceQuiz.questions([...])` (a `ScriptedQuestion[]`; Materials on a fresh tablet are ids `'1'`, `'2'`, ... in the order seeded) / `.content(raw)` / `.status(n)` / `.offline()`. `chatCompletion(content)` builds the response body.
 - **Files** (`tests/harness/files.ts`): `photo('unidad 1.jpg')` for `user.upload(screen.getByLabelText('Agregar material'), ...)`, and `dataUrlOf(type, bytes)` for the request check. `openRouterRequests` lists the requests sent in the current test, for the spec's one allowed request check (headers, Language and Grade Level in the prompt).
 - **Fake clock** (`tests/harness/clock.ts`): `setClock('2026-10-18T09:00')` freezes `Date` only; timers stay real, so `findBy*`/`waitFor`, user-event, MSW and Dexie work unchanged. Call it again to move time; it is reset after each test.
 - **Queries**: prefer roles and labels with the literal Spanish text. Each Settings card is a `region` named by its heading (`<Section title>`), so `within(screen.getByRole('region', { name: 'Modelos' }))` scopes a query to it.
