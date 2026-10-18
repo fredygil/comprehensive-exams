@@ -12,6 +12,7 @@ import { strings } from '../../strings'
 export function QuizQuestions({ quiz, questions }: { quiz: PracticeQuiz; questions: Question[] }) {
   const { quizSession } = useServices()
   const [position, setPosition] = useState(0)
+  const headingId = useId()
   const promptId = useId()
   const text = strings.quiz
   const question = questions[position]
@@ -19,8 +20,8 @@ export function QuizQuestions({ quiz, questions }: { quiz: PracticeQuiz; questio
   const last = questions.length - 1
 
   return (
-    <section aria-labelledby={promptId} className="card stack">
-      <h2>{text.questionOf(position + 1, questions.length)}</h2>
+    <section aria-labelledby={headingId} className="card stack">
+      <h2 id={headingId}>{text.questionOf(position + 1, questions.length)}</h2>
       <div id={promptId}>
         <RichText>{question.prompt}</RichText>
       </div>

@@ -42,6 +42,13 @@ function question(n: number, sourceMaterialId = '1'): ScriptedQuestion {
   }
 }
 
+/** The LaTeX of every formula rendered in an element (KaTeX keeps it in a MathML annotation). */
+function formulas(element: HTMLElement) {
+  return [...element.querySelectorAll('annotation[encoding="application/x-tex"]')].map(
+    (annotation) => annotation.textContent,
+  )
+}
+
 const questions = (count: number) => Array.from({ length: count }, (_, i) => question(i + 1))
 
 /** From the Exam screen: choose the count and tap "Practicar"; waits for the first Question. */
@@ -92,7 +99,67 @@ describe('starting a Practice Quiz', () => {
   })
 })
 
+describe('when a Practice Quiz cannot be generated', () => {
+  const offline = 'No hay conexión a internet. Conéctate e inténtalo de nuevo.'
+  const noCredit = 'Se acabó el saldo de la clave de OpenRouter. Pídele a un adulto que lo recargue.'
+  const badResponse = 'La respuesta del modelo no se pudo usar. Inténtalo de nuevo.'
+
+  it.each([
+    ['the tablet is offline', openRouter.practiceQuiz.offline(), offline],
+    ['credit has run out (402)', openRouter.practiceQuiz.status(402, { limit_source: 'openrouter_credits' }), noCredit],
+    ['the answer is not JSON', openRouter.practiceQuiz.content('Aquí tienes tu quiz: ...'), badResponse],
+    [
+      'no Question has four options',
+      openRouter.practiceQuiz.questions([{ ...question(1), options: ['a', 'b', 'c'] }]),
+      badResponse,
+    ],
+  ])('says so in Spanish when %s, and can try again', async (_, failure, message) => {
+    server.use(failure)
+    const app = await renderApp(withMaterial([{ name: 'Unidad 1', pages: ['Las fracciones.'] }]))
+    await openExam(app)
+
+    const practice = await practiceSection()
+    await app.user.click(await practice.findByRole('button', { name: 'Practicar' }))
+
+    expect(await practice.findByRole('alert')).toHaveTextContent(message)
+    server.use(openRouter.practiceQuiz.questions(questions(10)))
+    await app.user.click(practice.getByRole('button', { name: 'Practicar' }))
+    expect(await screen.findByRole('heading', { name: 'Pregunta 1 de 10' })).toBeInTheDocument()
+  })
+
+  it('needs a key', async () => {
+    const app = await renderApp({ ...withMaterial([{ name: 'Unidad 1', pages: ['Las fracciones.'] }]), openRouterKey: undefined })
+    await openExam(app)
+
+    const practice = await practiceSection()
+    expect(await practice.findByRole('button', { name: 'Practicar' })).toBeDisabled()
+    expect(practice.getByRole('link', { name: 'Configurar la clave' })).toBeInTheDocument()
+  })
+})
+
 describe('generating a Practice Quiz', () => {
+  it('keeps only well-formed Questions from the Exam\'s own Materials, up to the count asked', async () => {
+    server.use(
+      openRouter.practiceQuiz.questions([
+        question(1),
+        { ...question(2), options: ['a', 'b', 'c'] },
+        { ...question(3), correctIndex: 4 },
+        { ...question(4), sourceMaterialId: '99' },
+        question(5),
+        question(6),
+      ]),
+    )
+    const app = await renderApp(withMaterial([{ name: 'Unidad 1', pages: ['Las fracciones.'] }]))
+    await openExam(app)
+
+    await startQuiz(app, 2)
+
+    expect(screen.getByText('Pregunta número 1')).toBeInTheDocument()
+    await app.user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    expect(await screen.findByText('Pregunta número 5')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
+  })
+
   it('sends only the Exam\'s Recognized Text, the Subject\'s Language and the Grade Level', async () => {
     server.use(openRouter.practiceQuiz.questions(questions(5)))
     const app = await renderApp({
@@ -244,5 +311,69 @@ describe('submitting a Practice Quiz', () => {
     expect(await screen.findByText('1 / 1')).toBeInTheDocument()
     expect(screen.getByText('¡Respondiste todo bien!')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Respuestas incorrectas' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Questions with Markdown and math', () => {
+  it('renders formulas and Markdown in the Question, its options and its Feedback', async () => {
+    server.use(
+      openRouter.practiceQuiz.questions([
+        {
+          prompt: '¿Cuánto es $\\frac{1}{2} + \\frac{1}{4}$?',
+          options: ['$\\frac{3}{4}$', '$\\frac{2}{6}$', '**ninguna**', '$1$'],
+          correctIndex: 0,
+          explanation: 'Se usa el común denominador: $\\frac{2}{4} + \\frac{1}{4}$.',
+          sourceMaterialId: '1',
+        },
+      ]),
+    )
+    const app = await renderApp(withMaterial([{ name: 'Unidad 1', pages: ['Las fracciones.'] }]))
+    await openExam(app)
+    await startQuiz(app, 1)
+
+    // Not by the prompt: jsdom can't compute an accessible name made of KaTeX output.
+    const quiz = screen.getByRole('region', { name: 'Pregunta 1 de 1' })
+    expect(formulas(quiz).sort()).toEqual(['1', '\\frac{1}{2} + \\frac{1}{4}', '\\frac{2}{6}', '\\frac{3}{4}'])
+    expect(within(quiz).getByText('ninguna').tagName).toBe('STRONG')
+    expect(quiz).not.toHaveTextContent('$')
+
+    await app.user.click(within(quiz).getByText('ninguna'))
+    await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+
+    const feedback = await screen.findByRole('region', { name: 'Respuestas incorrectas' })
+    expect(formulas(feedback)).toEqual([
+      '\\frac{1}{2} + \\frac{1}{4}',
+      '\\frac{3}{4}',
+      '\\frac{2}{4} + \\frac{1}{4}',
+    ])
+    expect(within(feedback).getByText('ninguna').tagName).toBe('STRONG')
+    expect(feedback).not.toHaveTextContent('$')
+  })
+})
+
+describe('deleting an Exam with quizzes', () => {
+  it('names its quizzes in the confirmation and deletes them with it', async () => {
+    server.use(openRouter.practiceQuiz.questions(questions(2)))
+    const app = await renderApp(withMaterial([{ name: 'Unidad 1', pages: ['Las fracciones.'] }]))
+    await openExam(app)
+    await startQuiz(app, 2)
+    const quizUrl = window.location.hash
+    await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+    await startQuiz(app, 2)
+    await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+
+    await app.user.click(await screen.findByRole('button', { name: 'Eliminar examen' }))
+    const confirm = within(await screen.findByRole('alertdialog', { name: '¿Eliminar este examen?' }))
+    expect(confirm.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'El examen de Matemáticas de 2026–2027 · Q1',
+      '1 material',
+      '2 quizzes',
+    ])
+    await app.user.click(confirm.getByRole('button', { name: 'Sí, eliminar' }))
+    await screen.findByRole('heading', { name: /Ana/, level: 1 })
+
+    window.location.hash = quizUrl
+    await waitFor(() => expect(window.location.hash).toBe('#/'))
+    expect(screen.queryByRole('heading', { name: 'Quiz de práctica' })).not.toBeInTheDocument()
   })
 })
