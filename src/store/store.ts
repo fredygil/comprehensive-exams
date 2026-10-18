@@ -785,6 +785,14 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
         .sort((a, b) => b.createdAt - a.createdAt || b.id - a.id)
     },
 
+    /** The Exam's Submitted quizzes, the most recently submitted first. */
+    async submittedQuizzes(examId: number): Promise<PracticeQuiz[]> {
+      const quizzes = await db.quizzes.where('examId').equals(examId).toArray()
+      return quizzes
+        .filter((quiz) => quiz.state === 'submitted')
+        .sort((a, b) => b.submittedAt! - a.submittedAt! || b.id - a.id)
+    },
+
     /**
      * Deletes an In Progress quiz, with its Questions that no other quiz
      * lists (a Mistakes Quiz reuses Questions of Submitted quizzes, which stay).

@@ -150,6 +150,57 @@ describe('discarding an In Progress quiz', () => {
   })
 })
 
+/** Takes a whole quiz from the Exam screen: start it, answer in order, submit, back to the Exam. */
+async function takeQuiz(app: App, answers: string[], times: { start: string; submit: string }) {
+  setClock(times.start)
+  await startQuiz(app, answers.length)
+  for (const [i, answer] of answers.entries()) {
+    await screen.findByRole('heading', { name: `Pregunta ${i + 1} de ${answers.length}` })
+    await choose(app, answer)
+    if (i < answers.length - 1) await next(app)
+  }
+  setClock(times.submit)
+  await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+  await screen.findByRole('heading', { name: 'Resultado' })
+  await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+  await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+}
+
+async function historySection() {
+  return within(await screen.findByRole('region', { name: 'Historial' }))
+}
+
+describe('the history of Submitted quizzes', () => {
+  it('says there are none yet', async () => {
+    const app = await renderApp(withMaterial())
+    await openExam(app)
+
+    expect(await (await historySection()).findByText('Aún no has entregado ningún quiz.')).toBeInTheDocument()
+  })
+
+  it('lists them newest first with date, number of Questions and Score, without a delete', async () => {
+    server.use(openRouter.practiceQuiz.questions(questions(2)))
+    const app = await renderApp(withMaterial())
+    await openExam(app)
+    await takeQuiz(app, ['Correcta 1', 'Incorrecta 2a'], { start: '2026-10-18T09:00', submit: '2026-10-18T09:10' })
+    server.use(openRouter.practiceQuiz.questions(questions(3)))
+    await takeQuiz(app, ['Correcta 1', 'Correcta 2', 'Correcta 3'], {
+      start: '2026-10-19T16:00',
+      submit: '2026-10-19T16:30',
+    })
+    await startQuiz(app, 3) // still In Progress: not history
+    await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+
+    const history = await historySection()
+    const list = within(await history.findByRole('list', { name: 'Quizzes entregados' }))
+    expect(list.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      '19 de octubre de 2026, 16:30 · 3 preguntas · 3 / 3',
+      '18 de octubre de 2026, 9:10 · 2 preguntas · 1 / 2',
+    ])
+    expect(history.queryByRole('button')).not.toBeInTheDocument()
+  })
+})
+
 describe('submitting with unanswered Questions', () => {
   const warning = (n: string) => `${n} por responder. Las preguntas sin responder cuentan como incorrectas.`
 

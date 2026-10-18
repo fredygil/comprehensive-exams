@@ -250,6 +250,12 @@ export const strings = {
       item: (when: string) => `El quiz empezado el ${when}`,
       confirm: 'Sí, descartar',
     },
+    history: {
+      title: 'Historial',
+      list: 'Quizzes entregados',
+      empty: 'Aún no has entregado ningún quiz.',
+      questions: (n: number) => (n === 1 ? '1 pregunta' : `${n} preguntas`),
+    },
     /** Asked before submitting with unanswered Questions. */
     unanswered: {
       title: '¿Entregar el quiz?',
