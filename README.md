@@ -17,6 +17,7 @@ npm run typecheck      # tsc -b over app, config and tests
 npm run build          # typecheck + production build into dist/
 npm run preview        # serve dist/ at /comprehensive-exams/ (service worker included)
 npm run generate-pwa-assets   # regenerate icons from public/icon.svg
+OPENROUTER_API_KEY=sk-or-... npm run live-check   # manual: real models on sample Pages (see "Live check")
 ```
 
 CI (`.github/workflows/deploy.yml`) typechecks, tests and builds every push and PR, and deploys `main` to GitHub Pages. The repo's Pages source must be set to "GitHub Actions".
@@ -53,6 +54,7 @@ tests/
   harness/               the app-level test harness (below)
   *.test.tsx             app-level tests, one file per feature
   browser/               browser-mode tests (Chromium) of the Page Viewer, with fixtures/
+live-check/              manual check against real OpenRouter (not in npm test or CI), with neutral sample Pages in fixtures/
 ```
 
 New modules from spec #1 (Page Splitter, Reading Queue, Quiz Maker, ...) get their own folder under `src/`. Screens reach them through `useServices()`; if a module needs the outside world, add it to `AppServices` in `src/app/services.tsx` so tests can swap it.
@@ -87,6 +89,31 @@ New modules from spec #1 (Page Splitter, Reading Queue, Quiz Maker, ...) get the
 ### Data under an Exam
 
 Deleting an Exam, or a Subject with its Exams, removes everything stored under it after a confirmation that names it. When a ticket adds data under an Exam (Material, Summary, Explainers, quizzes), it adds a kind to `ExamPartKind` and an entry to `examParts` in `src/store/store.ts` (tables, count, delete), plus its line in `strings.deletion.examParts`. Both confirmations and both cascades pick it up from there.
+
+## Live check
+
+A manual check that the default models are good enough, run by hand before handing the app over and after changing a default model. It is never part of `npm test` or CI (`vitest.config.ts` doesn't include `live-check/`), and the key comes only from the environment: never write it to a file in the repo.
+
+```sh
+OPENROUTER_API_KEY=sk-or-v1-... npm run live-check
+# try other models (the defaults are in src/settings/models.ts):
+OPENROUTER_API_KEY=sk-or-v1-... LIVE_CHECK_READ_MODEL=google/gemini-3.8-flash npm run live-check
+```
+
+Without the key it stops at once with a message saying how to set it. With one, it uses the app's real Model Gateway, prompts and Practice Quiz schema to:
+
+1. read `live-check/fixtures/sample-page-es.pdf` (a scanned, handwritten-style Ciencias page in Spanish: a chemical equation and a table) with `readPage`, then make a 5-Question Practice Quiz in Spanish from that Recognized Text with `generateStructured`;
+2. do the same with `live-check/fixtures/sample-photo-en.jpg` (a tilted phone photo of a math page in English: the Pythagorean theorem, a triangle, worked examples), with the quiz in English.
+
+It prints the models used, each Recognized Text, the Questions with the correct option marked (`<- correct`) and the explanation, and after every call its token usage, cost, the model and provider that answered and how long it took, then the totals. A failed call is printed as `FAILED: <GatewayError kind>` and the run ends with a failed test; `InvalidKey` means the key is wrong, `NoCredit` that it has no credit left. `LIVE_CHECK_QUIZ_MODEL` and `LIVE_CHECK_GRADE_LEVEL` (default 6) are also read.
+
+What to look for:
+
+- **Recognized Text**: every word is there, in reading order and *not translated*; subscripts and formulas are LaTeX in `$...$` (e.g. `$6CO_2 + 6H_2O \rightarrow C_6H_{12}O_6 + 6O_2$`, `$a^2 + b^2 = c^2$`, `$\sqrt{25}$`); the comparison table is a Markdown table; no commentary or summary was added; unreadable words are `[?]`, not invented. The photo is the harder case (tilt, shadow). If it misses things, try `google/gemini-3.8-flash`, the stronger alternative.
+- **Questions**: in the right Language and plain enough for the Grade Level; answerable from the page alone (nothing about topics the page doesn't cover); exactly one clearly correct option, with plausible wrong ones of similar length; the explanation says why; five different ideas, not the same fact five times; `Only N of 5 Questions came back usable` means the model sent malformed ones.
+- **Cost**: at the default models' prices (`docs/research/openrouter-models.md`) each call should cost around a tenth of a cent; much more points at runaway reasoning or output tokens (`reasoning` in the usage line). Multiply the per-Page read cost by the Pages a Student adds in a quarter to see what reading costs.
+
+The samples contain no personal information. They were rendered from HTML in a handwriting font (the PDF holds one JPEG, like a Drive scan); real notebook Pages must not be committed, since the repo is public.
 
 ## Writing an app-level test
 

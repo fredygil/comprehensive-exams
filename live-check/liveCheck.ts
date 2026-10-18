@@ -36,25 +36,41 @@ export type LiveCheckOptions = {
  */
 export async function runLiveCheck(options: LiveCheckOptions): Promise<{ ok: boolean }> {
   const { samples, print, gradeLevel = 6 } = options
+  const modelFor = (job: Job) => options.models?.[job] ?? DEFAULT_MODELS[job]
   const gateway = createModelGateway({
     getKey: async () => options.key,
-    getModel: async (job) => options.models?.[job] ?? DEFAULT_MODELS[job],
+    getModel: async (job) => modelFor(job),
     appUrl: APP_URL,
     appTitle: APP_TITLE,
   })
   const usage = watchUsage()
   const calls: CallUsage[] = []
+  const outcomes = { succeeded: 0, failed: 0, skipped: 0 }
 
-  /** Runs one Gateway call and prints what it used. */
-  async function call<T>(run: () => Promise<T>): Promise<T> {
+  /**
+   * Runs one Gateway call and prints what it used. A failure is printed and
+   * returned as undefined, so the rest of the check still runs.
+   */
+  async function call<T>(run: () => Promise<T>): Promise<T | undefined> {
     const started = performance.now()
-    const result = await run()
-    const seconds = (performance.now() - started) / 1000
-    const used = usage.take()
-    if (used) calls.push(used)
-    print(used ? `${formatUsage(used)} · ${seconds.toFixed(1)} s` : `Usage: not reported · ${seconds.toFixed(1)} s`)
-    return result
+    const seconds = () => `${((performance.now() - started) / 1000).toFixed(1)} s`
+    try {
+      const result = await run()
+      const used = usage.take()
+      if (used) calls.push(used)
+      print(used ? `${formatUsage(used)} · ${seconds()}` : `Usage: not reported · ${seconds()}`)
+      outcomes.succeeded++
+      return result
+    } catch (error) {
+      usage.take()
+      print(`FAILED: ${error instanceof Error ? error.message : String(error)} · ${seconds()}`)
+      outcomes.failed++
+      return undefined
+    }
   }
+
+  print(`Models: readPages = ${modelFor('readPages')} · practiceQuiz = ${modelFor('practiceQuiz')}`)
+  print(`Grade Level: ${gradeLevel}`)
 
   try {
     for (const sample of samples) {
@@ -64,6 +80,11 @@ export async function runLiveCheck(options: LiveCheckOptions): Promise<{ ok: boo
       const text = await call(() =>
         gateway.readPage({ prompt: readPagePrompt(context), original: sample.original }),
       )
+      if (text === undefined) {
+        print(`Skipped: Practice Quiz from ${sample.name} (its Page was not read)`)
+        outcomes.skipped++
+        continue
+      }
       print(text)
 
       print(`== Practice Quiz in ${languageName(sample.language)} (${QUESTION_COUNT} Questions) from ${sample.name} ==`)
@@ -72,6 +93,7 @@ export async function runLiveCheck(options: LiveCheckOptions): Promise<{ ok: boo
         materials: [{ id: MATERIAL_ID, pages: [text] }],
       })
       const questions = await call(() => gateway.generateStructured(prompt, QUIZ_SCHEMA, 'practiceQuiz'))
+      if (questions === undefined) continue
       if (questions.length < QUESTION_COUNT) {
         print(`Only ${questions.length} of ${QUESTION_COUNT} Questions came back usable.`)
       }
@@ -81,8 +103,10 @@ export async function runLiveCheck(options: LiveCheckOptions): Promise<{ ok: boo
     usage.restore()
   }
 
+  print('== Totals ==')
   print(formatTotal(calls))
-  return { ok: true }
+  print(`Calls: ${outcomes.succeeded} succeeded, ${outcomes.failed} failed, ${outcomes.skipped} skipped`)
+  return { ok: outcomes.failed === 0 }
 }
 
 const LETTERS = 'abcd'

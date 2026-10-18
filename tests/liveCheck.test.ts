@@ -4,7 +4,7 @@
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { KEY_VARIABLE, requireKey } from '../live-check/key'
-import { runLiveCheck, type Sample } from '../live-check/liveCheck'
+import { runLiveCheck, type LiveCheckOptions, type Sample } from '../live-check/liveCheck'
 import { OPENROUTER, chatCompletion, openRouter, openRouterRequests, server } from './harness/openRouter'
 
 const spanishPdf: Sample = {
@@ -19,11 +19,12 @@ const englishPhoto: Sample = {
 }
 
 /** Runs the live check on both samples and returns everything it printed. */
-async function liveCheck() {
+async function liveCheck(models?: LiveCheckOptions['models']) {
   const lines: string[] = []
   const result = await runLiveCheck({
     key: 'sk-or-v1-live',
     samples: [spanishPdf, englishPhoto],
+    models,
     print: (line) => lines.push(line),
   })
   return { ...result, output: lines.join('\n') }
@@ -124,5 +125,38 @@ describe('the live check', () => {
       /Usage: 2,000 prompt \+ 600 completion tokens · \$0\.003000 · anthropic\/claude-haiku-5\.5 via Test Provider/,
     )
     expect(output).toContain('Total: 4 calls · 6,000 prompt + 1,600 completion tokens · $0.006400')
+  })
+
+  it('reports a failed call, skips what depends on it and carries on', async () => {
+    server.use(
+      openRouter.readPage.inTurn([400, 'Notes in English']),
+      openRouter.practiceQuiz.questions([]),
+    )
+
+    const { ok, output } = await liveCheck()
+
+    expect(ok).toBe(false)
+    expect(output).toContain('FAILED: BadResponse: HTTP 400')
+    expect(output).toContain('Skipped: Practice Quiz from fotosintesis.pdf (its Page was not read)')
+    expect(output).toContain('Notes in English')
+    expect(output).toContain('Practice Quiz in English (5 Questions) from pythagoras.jpg')
+    expect(output).toContain('Calls: 2 succeeded, 1 failed, 1 skipped')
+  })
+
+  it('uses the default models unless told to try others, and says which', async () => {
+    server.use(openRouter.readPage.text('Notes'), openRouter.practiceQuiz.questions([]))
+
+    const { output } = await liveCheck({ readPages: 'google/gemini-3.8-flash' })
+
+    expect(output).toContain('Models: readPages = google/gemini-3.8-flash · practiceQuiz = anthropic/claude-haiku-5.5')
+    const models = await Promise.all(
+      openRouterRequests.map(async (request) => ((await request.clone().json()) as { model: string }).model),
+    )
+    expect(models).toEqual([
+      'google/gemini-3.8-flash',
+      'anthropic/claude-haiku-5.5',
+      'google/gemini-3.8-flash',
+      'anthropic/claude-haiku-5.5',
+    ])
   })
 })
