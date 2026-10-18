@@ -204,6 +204,8 @@ export type PracticeQuiz = {
   /** ms since the epoch. */
   createdAt: number
   submittedAt: number | null
+  /** The 0-based position of the Question she was on while In Progress, so she resumes there (missing: the first). */
+  currentPosition?: number
 }
 
 /** A quiz with its Questions, in the quiz's order. */
@@ -774,6 +776,23 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     },
 
     getQuiz,
+
+    /** The Exam's In Progress quizzes, newest first. */
+    async inProgressQuizzes(examId: number): Promise<PracticeQuiz[]> {
+      const quizzes = await db.quizzes.where('examId').equals(examId).toArray()
+      return quizzes
+        .filter((quiz) => quiz.state === 'inProgress')
+        .sort((a, b) => b.createdAt - a.createdAt || b.id - a.id)
+    },
+
+    /** Remembers which Question of an In Progress quiz she is on. */
+    async moveInQuiz(quizId: number, position: number) {
+      await db.transaction('rw', db.quizzes, async () => {
+        const quiz = await db.quizzes.get(quizId)
+        if (!quiz || quiz.state !== 'inProgress' || !quiz.items[position]) return
+        await db.quizzes.update(quizId, { currentPosition: position })
+      })
+    },
 
     /** Records (or changes) the answer to the quiz's Question at `position`, while it is In Progress. */
     async answerQuizQuestion(quizId: number, position: number, chosenIndex: number) {

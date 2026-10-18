@@ -44,6 +44,11 @@ export function createQuizSession({ store }: { store: Store }) {
       await store.answerQuizQuestion(quizId, position, chosenIndex)
     },
 
+    /** Remembers the Question she is on, so the quiz resumes there. */
+    async goTo(quizId: number, position: number) {
+      await store.moveInQuiz(quizId, position)
+    },
+
     /** Scores the quiz and makes it Submitted. Works offline. */
     async submit(quizId: number) {
       await store.submitQuiz(quizId, scoreOf)

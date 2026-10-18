@@ -228,6 +228,26 @@ export const strings = {
     },
   },
 
+  /** Practice Quizzes over time: In Progress ones to resume or discard, and the history of Submitted ones. */
+  quizzes: {
+    /** "18 de octubre de 2026, 9:05" */
+    when: (ms: number) =>
+      new Date(ms).toLocaleString('es', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }),
+    inProgress: {
+      list: 'Quizzes en curso',
+      started: (when: string) => `Empezado el ${when}`,
+      resume: 'Continuar',
+    },
+    /** "2 de 10 respondidas" */
+    answered: (n: number, total: number) => `${n} de ${total} respondidas`,
+  },
+
   /** Delete confirmations: they name everything that will be lost. */
   deletion: {
     willLose: 'Se borrará para siempre:',

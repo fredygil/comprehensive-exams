@@ -7,6 +7,7 @@ import { Section } from '../../components/Section'
 import { GatewayError, type GatewayErrorKind } from '../../gateway/errors'
 import type { Exam } from '../../store/store'
 import { strings } from '../../strings'
+import { InProgressQuizzes } from './InProgressQuizzes'
 
 const COUNTS = Array.from({ length: 20 }, (_, i) => i + 1)
 const DEFAULT_COUNT = 10
@@ -40,6 +41,7 @@ export function QuizSection({ exam }: { exam: Exam }) {
     <Section title={text.section}>
       {hasReadPages !== undefined && hasKey !== undefined && (
         <div className="stack">
+          <InProgressQuizzes exam={exam} />
           <form onSubmit={start} className="row">
             <label>
               {text.count}

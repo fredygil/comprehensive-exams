@@ -11,13 +11,19 @@ import { strings } from '../../strings'
  */
 export function QuizQuestions({ quiz, questions }: { quiz: PracticeQuiz; questions: Question[] }) {
   const { quizSession } = useServices()
-  const [position, setPosition] = useState(0)
+  // Where she left off; every move is saved so the quiz resumes there.
+  const [position, setPosition] = useState(quiz.currentPosition ?? 0)
   const headingId = useId()
   const promptId = useId()
   const text = strings.quiz
   const question = questions[position]
   const chosenIndex = quiz.items[position].chosenIndex
   const last = questions.length - 1
+
+  function goTo(to: number) {
+    setPosition(to)
+    void quizSession.goTo(quiz.id, to)
+  }
 
   return (
     <section aria-labelledby={headingId} className="card stack">
@@ -39,10 +45,10 @@ export function QuizQuestions({ quiz, questions }: { quiz: PracticeQuiz; questio
         ))}
       </div>
       <div className="row">
-        <button type="button" disabled={position === 0} onClick={() => setPosition(position - 1)}>
+        <button type="button" disabled={position === 0} onClick={() => goTo(position - 1)}>
           {text.previous}
         </button>
-        <button type="button" disabled={position === last} onClick={() => setPosition(position + 1)}>
+        <button type="button" disabled={position === last} onClick={() => goTo(position + 1)}>
           {text.next}
         </button>
         <button type="submit" onClick={() => void quizSession.submit(quiz.id)}>
