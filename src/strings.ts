@@ -306,15 +306,16 @@ export const strings = {
 
   /** Practice Quizzes over time: In Progress ones to resume or discard, and the history of Submitted ones. */
   quizzes: {
-    /** "18 de octubre de 2026, 9:05" */
-    when: (ms: number) =>
-      new Date(ms).toLocaleString('es', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      }),
+    /**
+     * "18 de octubre de 2026, 9:05". Date and time are formatted apart and joined here, because the
+     * separator `toLocaleString` puts between them differs between ICU versions (", " vs " a las ").
+     */
+    when: (ms: number) => {
+      const date = new Date(ms)
+      const day = date.toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })
+      const time = date.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })
+      return `${day}, ${time}`
+    },
     inProgress: {
       list: 'Quizzes en curso',
       started: (when: string) => `Empezado el ${when}`,
