@@ -54,6 +54,12 @@ export function createQuizSession({ store }: { store: Store }) {
       await store.discardQuiz(quizId)
     },
 
+    /** How many of the quiz's Questions are still unanswered (0 if there is no such quiz). */
+    async unanswered(quizId: number): Promise<number> {
+      const found = await store.getQuiz(quizId)
+      return found ? found.quiz.items.filter((item) => item.chosenIndex === null).length : 0
+    },
+
     /** Scores the quiz and makes it Submitted. Works offline. */
     async submit(quizId: number) {
       await store.submitQuiz(quizId, scoreOf)

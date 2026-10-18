@@ -149,3 +149,51 @@ describe('discarding an In Progress quiz', () => {
     expect(practice.queryByRole('list', { name: 'Quizzes en curso' })).not.toBeInTheDocument()
   })
 })
+
+describe('submitting with unanswered Questions', () => {
+  const warning = (n: string) => `${n} por responder. Las preguntas sin responder cuentan como incorrectas.`
+
+  it('shows how many are answered, warns with how many are not, and counts them as wrong', async () => {
+    server.use(openRouter.practiceQuiz.questions(questions(3)))
+    const app = await renderApp(withMaterial())
+    await openExam(app)
+    await startQuiz(app, 3)
+    expect(screen.getByText('0 de 3 respondidas')).toBeInTheDocument()
+    await choose(app, 'Correcta 1')
+    expect(await screen.findByText('1 de 3 respondidas')).toBeInTheDocument()
+
+    await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+    const first = within(await screen.findByRole('alertdialog', { name: '¿Entregar el quiz?' }))
+    expect(first.getByText(warning('Te faltan 2 preguntas'))).toBeInTheDocument()
+    await app.user.click(first.getByRole('button', { name: 'Seguir respondiendo' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    await next(app)
+    await choose(app, 'Incorrecta 2b')
+
+    await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+    const again = within(await screen.findByRole('alertdialog', { name: '¿Entregar el quiz?' }))
+    expect(again.getByText(warning('Te falta 1 pregunta'))).toBeInTheDocument()
+    await app.user.click(again.getByRole('button', { name: 'Sí, entregar' }))
+
+    expect(await screen.findByText('1 / 3')).toBeInTheDocument()
+    const feedback = within(screen.getByRole('region', { name: 'Respuestas incorrectas' })).getAllByRole('listitem')
+    expect(feedback.map((item) => item.querySelector('h3')!.textContent)).toEqual(['Pregunta 2', 'Pregunta 3'])
+    expect(feedback[1]).toHaveTextContent('Tu respuesta: Sin responder')
+  })
+
+  it('submits at once when every Question is answered, even one tapped just before', async () => {
+    server.use(openRouter.practiceQuiz.questions(questions(2)))
+    const app = await renderApp(withMaterial())
+    await openExam(app)
+    await startQuiz(app, 2)
+    await choose(app, 'Correcta 1')
+    await next(app)
+    await screen.findByRole('heading', { name: 'Pregunta 2 de 2' })
+
+    await app.user.click(screen.getByRole('radio', { name: 'Incorrecta 2a' }))
+    await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+
+    expect(await screen.findByText('1 / 2')).toBeInTheDocument()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+})

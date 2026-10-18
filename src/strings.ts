@@ -250,6 +250,15 @@ export const strings = {
       item: (when: string) => `El quiz empezado el ${when}`,
       confirm: 'Sí, descartar',
     },
+    /** Asked before submitting with unanswered Questions. */
+    unanswered: {
+      title: '¿Entregar el quiz?',
+      message: (n: number) =>
+        `${n === 1 ? 'Te falta 1 pregunta' : `Te faltan ${n} preguntas`} por responder. ` +
+        'Las preguntas sin responder cuentan como incorrectas.',
+      submit: 'Sí, entregar',
+      keepAnswering: 'Seguir respondiendo',
+    },
     /** "2 de 10 respondidas" */
     answered: (n: number, total: number) => `${n} de ${total} respondidas`,
   },
