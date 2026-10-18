@@ -274,3 +274,141 @@ describe('an Outdated Summary', () => {
     expect((await summarySection()).queryByText(OUTDATED)).not.toBeInTheDocument()
   })
 })
+
+describe('Pages not included', () => {
+  it('warns how many Pages are unread or failed, and leaves them out of the request', async () => {
+    server.use(openRouter.readPage.inTurn([400, 'hang']), openRouter.structured.json(fractionsSummary))
+    const app = await renderApp({
+      student: ana,
+      openRouterKey: 'sk-or-v1-good',
+      subjects,
+      exams: [{ ...mathExam, materials: [fractions, { name: 'Unidad 2', pages: [], unreadPages: 2 }] }],
+    })
+    await openExam(app)
+
+    const section = await summarySection()
+    expect(await section.findByText('2 páginas aún no se incluyen.')).toBeInTheDocument()
+    await app.user.click(section.getByRole('button', { name: 'Generar resumen' }))
+
+    await screen.findByRole('heading', { name: 'Resumen de Matemáticas', level: 1 })
+    expect(await screen.findByText('2 páginas aún no se incluyen.')).toBeInTheDocument()
+    const summaryRequest = (await chatBodies()).find((body) => body.response_format)
+    expect(promptOf(summaryRequest)).toContain('Una fracción tiene numerador y denominador.')
+    expect(promptOf(summaryRequest)).not.toContain('Unidad 2')
+  })
+
+  it('keeps warning about Pages read after the Summary was made, until it is regenerated', async () => {
+    server.use(openRouter.readPage.text('Porcentajes.'), openRouter.structured.json(fractionsSummary))
+    const app = await renderApp({
+      student: ana,
+      openRouterKey: 'sk-or-v1-good',
+      subjects,
+      exams: [
+        { ...mathExam, materials: [fractions, { name: 'Unidad 2', pages: [], unreadPages: 1 }], summary: oldSummary },
+      ],
+    })
+    await openExam(app)
+    // The app reads the unread Page on launch, after the Summary was made.
+    await openMaterial(app, 'Unidad 2')
+    expect(await screen.findByText('Porcentajes.')).toBeInTheDocument()
+    await backToExam(app)
+    await openSummary(app)
+
+    expect(await screen.findByText('1 página aún no se incluye.')).toBeInTheDocument()
+    await app.user.click(screen.getByRole('button', { name: 'Regenerar' }))
+
+    expect(await screen.findByRole('heading', { name: 'Fracciones equivalentes', level: 2 })).toBeInTheDocument()
+    expect(screen.queryByText(/aún no se incluye/)).not.toBeInTheDocument()
+    const summaryRequest = (await chatBodies()).find((body) => body.response_format)
+    expect(promptOf(summaryRequest)).toContain('Porcentajes.')
+  })
+})
+
+describe('when a Summary can be generated', () => {
+  it('needs at least one read Page', async () => {
+    const app = await renderApp({
+      student: ana,
+      openRouterKey: 'sk-or-v1-good',
+      subjects,
+      exams: [{ subject: 'Matemáticas', period: q1 }],
+    })
+    await openExam(app)
+
+    const section = await summarySection()
+    expect(await section.findByRole('button', { name: 'Generar resumen' })).toBeDisabled()
+    expect(section.getByText('Agrega material y espera a que se lea al menos una página.')).toBeInTheDocument()
+  })
+
+  it('needs the key', async () => {
+    const app = await renderApp({ student: ana, subjects, exams: [mathExam] })
+    await openExam(app)
+
+    const section = await summarySection()
+    expect(await section.findByRole('button', { name: 'Generar resumen' })).toBeDisabled()
+    expect(section.getByRole('link', { name: 'Configurar la clave' })).toBeInTheDocument()
+  })
+})
+
+describe('offline', () => {
+  it('reads the Summary with no internet', async () => {
+    server.use(openRouter.structured.offline(), openRouter.key.offline())
+    const app = await renderApp({
+      student: ana,
+      openRouterKey: 'sk-or-v1-good',
+      subjects,
+      exams: [{ ...mathExam, summary: oldSummary }],
+    })
+    await app.reopen()
+    await openExam(app)
+    await openSummary(app)
+
+    expect(screen.getByRole('heading', { name: 'Fracciones', level: 2 })).toBeInTheDocument()
+    expect(screen.getByText('Resumen viejo de las fracciones.')).toBeInTheDocument()
+  })
+
+  it('says generating needs internet, and nothing is lost', async () => {
+    server.use(openRouter.structured.offline())
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
+    await openExam(app)
+
+    const section = await summarySection()
+    await app.user.click(await section.findByRole('button', { name: 'Generar resumen' }))
+
+    expect(await section.findByRole('alert')).toHaveTextContent(
+      'No hay conexión a internet. Conéctate e inténtalo de nuevo.',
+    )
+    expect(section.getByRole('button', { name: 'Generar resumen' })).toBeEnabled()
+    expect(section.queryByRole('link', { name: 'Leer el resumen' })).not.toBeInTheDocument()
+  })
+})
+
+describe('deleting the Exam', () => {
+  it('names the Summary in the confirmation and deletes it with the Exam', async () => {
+    const app = await renderApp({
+      student: ana,
+      openRouterKey: 'sk-or-v1-good',
+      subjects,
+      exams: [{ ...mathExam, summary: oldSummary }],
+    })
+    await openExam(app)
+
+    await app.user.click(screen.getByRole('button', { name: 'Eliminar examen' }))
+    const confirm = within(await screen.findByRole('alertdialog', { name: '¿Eliminar este examen?' }))
+    expect(confirm.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'El examen de Matemáticas de 2026–2027 · Q1',
+      '1 material',
+      'El resumen',
+    ])
+    await app.user.click(confirm.getByRole('button', { name: 'Sí, eliminar' }))
+    await screen.findByRole('heading', { name: /Ana/, level: 1 })
+
+    // A new Exam for the same Subject and Period starts with no Summary.
+    await app.user.click(screen.getByRole('link', { name: 'Nuevo examen' }))
+    await app.user.selectOptions(await screen.findByLabelText('Materia'), 'Matemáticas')
+    await app.user.click(screen.getByRole('button', { name: 'Crear examen' }))
+    await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
+    const section = await summarySection()
+    expect(await section.findByRole('button', { name: 'Generar resumen' })).toBeInTheDocument()
+    expect(section.queryByRole('link', { name: 'Leer el resumen' })).not.toBeInTheDocument()
+  })
+})
