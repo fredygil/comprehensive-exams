@@ -56,7 +56,7 @@ A study guide covering all of an Exam's Material, organized by topic; an Exam ha
 _Avoid_: Notes, recap, study guide
 
 **Outdated**:
-The state of a Summary whose Exam's Material has changed since it was made.
+The state of a Summary whose Exam's Material, or whose Subject's Language, has changed since it was made.
 _Avoid_: Stale, expired
 
 **Explainer**:

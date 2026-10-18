@@ -3,39 +3,11 @@
 // suggestTopics(exam) asks the summary model for topics in the Exam's
 // Recognized Text; generateExplainer(exam, topic) researches one topic on
 // the web and stores the Explainer with its sources.
-import type { ModelGateway, StructuredSchema } from '../gateway/gateway'
-import type { PromptContext } from '../prompts/context'
+import type { StructuredSchema } from '../gateway/gateway'
 import { explainerPrompt } from '../prompts/explainer'
-import { suggestTopicsPrompt, type MaterialText } from '../prompts/suggestTopics'
-import type { Exam, Store } from '../store/store'
-
-export type StudyAidServices = { store: Store; gateway: ModelGateway }
-
-/** The Recognized Text a Study Aid can use, and how many Pages it leaves out (unread or failed). */
-export type ExamText = { materials: MaterialText[]; readPages: number; notIncluded: number }
-
-/** The Exam's Recognized Text, Material by Material; only read Pages are included. */
-export async function examText(store: Store, examId: number): Promise<ExamText> {
-  const materials: MaterialText[] = []
-  let readPages = 0
-  let notIncluded = 0
-  for (const material of await store.examMaterials(examId)) {
-    const pages: string[] = []
-    for (const page of await store.materialPages(material.id)) {
-      if (page.status === 'read' && page.recognizedText !== null) pages.push(page.recognizedText)
-      else notIncluded++
-    }
-    readPages += pages.length
-    if (pages.length) materials.push({ name: material.name, pages })
-  }
-  return { materials, readPages, notIncluded }
-}
-
-async function promptContext(store: Store, exam: Exam): Promise<PromptContext> {
-  const student = await store.getStudent()
-  if (!student) throw new Error('Study Aids need the Student (first run is not done)')
-  return { language: exam.subject.language, gradeLevel: student.gradeLevel }
-}
+import { suggestTopicsPrompt } from '../prompts/suggestTopics'
+import type { Exam } from '../store/store'
+import { examText, promptContext, type StudyAidServices } from './examText'
 
 const topicsSchema: StructuredSchema<{ topics: string[] }> = {
   name: 'topics',
