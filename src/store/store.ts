@@ -1014,14 +1014,14 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       if (!isSnapshotOfThisStore(snapshot)) throw new InvalidSnapshotError()
       try {
         await db.transaction('rw', db.tables, async () => {
-          const settings = await readSettings()
+          const { openRouterKey } = await readSettings()
           for (const table of db.tables) await table.clear()
           for (const table of db.tables) await table.bulkAdd(snapshot[table.name])
           await db.pages.where('status').equals('reading').modify({ status: 'unread' })
           const restored = await readSettings()
           await db.singletons.put({
             id: 'settings',
-            value: { ...restored, openRouterKey: settings.openRouterKey ?? null },
+            value: { ...restored, openRouterKey: openRouterKey ?? null },
           })
         })
       } catch (error) {

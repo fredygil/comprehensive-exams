@@ -38,7 +38,9 @@ type Header = { format: string; version: number; exportedAt: number; tables: Sto
 
 const NEWLINE = 0x0a
 
-export function createBackup({ store, readingQueue }: { store: Store; readingQueue: Pick<ReadingQueue, 'start' | 'stop'> }) {
+export type BackupOptions = { store: Store; readingQueue: Pick<ReadingQueue, 'start' | 'stop'> }
+
+export function createBackup({ store, readingQueue }: BackupOptions) {
   return {
     /** Everything on the tablet as one file, named after today, e.g. "mis-examenes-2026-10-18.backup". */
     async exportAll(): Promise<File> {
@@ -56,7 +58,8 @@ export function createBackup({ store, readingQueue }: { store: Store; readingQue
         },
       )
       const name = `mis-examenes-${toIsoDate(new Date(exportedAt))}.backup`
-      return new File([header, '\n', ...parts.map((part) => new Uint8Array(part))], name, { type: 'application/octet-stream' })
+      const scans = parts.map((part) => new Uint8Array(part))
+      return new File([header, '\n', ...scans], name, { type: 'application/octet-stream' })
     },
 
     /** Reads and checks a backup file, changing nothing. */
