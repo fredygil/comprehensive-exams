@@ -13,6 +13,9 @@ export type PromptContext = {
   gradeLevel: GradeLevel
 }
 
+/** One Material's Recognized Text, Page by Page (read Pages only), as prompts quote it. */
+export type MaterialText = { name: string; pages: string[] }
+
 const LANGUAGE_NAMES: Record<Language, string> = { es: 'Spanish', en: 'English' }
 
 /** "Spanish" for 'es': how prompts name a Language. */

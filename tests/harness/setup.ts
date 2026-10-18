@@ -8,6 +8,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import { openRouterRequests, releaseHangingRequests, server } from './openRouter'
 import { closeOpenApps } from './renderApp'
 
+// jsdom can't draw PDF Pages: the app gets a stand-in Page Viewer.
+vi.mock('../../src/pageViewer/PageViewer', () => import('./pageViewerStandIn'))
+
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 
 beforeEach(() => {
