@@ -1,6 +1,7 @@
 import { useId, useState, type FormEvent } from 'react'
 import { useServices } from '../../app/services'
 import { NeedsKeyNotice, useHasKey } from '../../components/NeedsKey'
+import { ReadingPausedNotice, useReadingPause } from '../../components/ReadingPaused'
 import { RichText } from '../../components/RichText'
 import { PageViewer } from '../../pageViewer/PageViewer'
 import type { Page } from '../../store/store'
@@ -25,18 +26,25 @@ export function PageView({ page }: { page: Page }) {
 }
 
 function PageText({ page }: { page: Page }) {
+  const { readingQueue } = useServices()
   const hasKey = useHasKey()
+  const pause = useReadingPause()
   const text = strings.material.page
   switch (page.status) {
     case 'unread':
     case 'reading':
       // Without a key the Page waits in line until one is saved.
-      return hasKey === false ? <NeedsKeyNotice /> : <p className="hint">{text.reading}</p>
+      if (hasKey === false) return <NeedsKeyNotice />
+      if (pause) return <ReadingPausedNotice />
+      return <p className="hint">{text.reading}</p>
     case 'failed':
       return (
-        <p role="alert" className="error">
-          {strings.errors[page.failure ?? 'BadResponse']}
-        </p>
+        <div role="alert" className="stack">
+          <p className="error">{strings.errors[page.failure ?? 'BadResponse']}</p>
+          <button type="button" onClick={() => void readingQueue.retry(page.id)}>
+            {text.retry}
+          </button>
+        </div>
       )
     case 'read':
       return <EditableText page={page} />

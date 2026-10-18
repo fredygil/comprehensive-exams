@@ -5,7 +5,8 @@ import { NeedsKeyNotice, useHasKey } from '../../components/NeedsKey'
 import { GatewayError } from '../../gateway/errors'
 import type { Exam, SummaryState } from '../../store/store'
 import { strings } from '../../strings'
-import { examText, generateSummary } from '../../studyAids/summary'
+import { examText } from '../../studyAids/examText'
+import { generateSummary } from '../../studyAids/summary'
 
 /**
  * Generating or regenerating an Exam's Summary, with what the Student needs
@@ -24,7 +25,7 @@ export function SummaryActions(props: {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const text = strings.summary
-  const readPages = scope?.pageIds.length ?? 0
+  const readPages = scope?.readPages ?? 0
   // Needs the key and at least one read Page (spec: availability rules).
   const ready = hasKey === true && readPages > 0
   // With a Summary, what it left out; without one, what a new one would.

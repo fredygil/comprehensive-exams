@@ -14,7 +14,13 @@ export type AppServices = {
   readingQueue: ReadingQueue
 }
 
-export function createAppServices(options: { dbName?: string } = {}): AppServices {
+export type AppServicesOptions = {
+  dbName?: string
+  /** How the Reading Queue waits before retrying a busy model (tests make it instant). */
+  wait?: (ms: number) => Promise<void>
+}
+
+export function createAppServices(options: AppServicesOptions = {}): AppServices {
   const store = createStore(options.dbName)
   const gateway = createModelGateway({
     getKey: () => store.getOpenRouterKey(),
@@ -22,7 +28,7 @@ export function createAppServices(options: { dbName?: string } = {}): AppService
     appUrl: APP_URL,
     appTitle: APP_TITLE,
   })
-  const readingQueue = createReadingQueue({ store, gateway })
+  const readingQueue = createReadingQueue({ store, gateway, wait: options.wait })
   return { store, gateway, readingQueue }
 }
 

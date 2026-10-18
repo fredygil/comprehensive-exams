@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router'
 import { ExamScreen } from '../screens/exams/ExamScreen'
+import { ExplainerScreen } from '../screens/explainers/ExplainerScreen'
 import { NewExamScreen } from '../screens/exams/NewExamScreen'
 import { MaterialScreen } from '../screens/material/MaterialScreen'
 import { FirstRunScreen } from '../screens/FirstRunScreen'
@@ -21,10 +22,17 @@ export function App({ services }: { services: AppServices }) {
     void requestPersistentStorage()
   }, [])
 
-  // Read any Pages still unread, from this launch until the app closes.
+  // Read any Pages still unread, from this launch until the app closes, and
+  // pick up again when the tablet comes back online.
   useEffect(() => {
-    services.readingQueue.start()
-    return () => services.readingQueue.stop()
+    const { readingQueue } = services
+    const resume = () => readingQueue.start()
+    readingQueue.start()
+    window.addEventListener('online', resume)
+    return () => {
+      window.removeEventListener('online', resume)
+      readingQueue.stop()
+    }
   }, [services])
 
   return (
@@ -52,6 +60,7 @@ function Screens() {
         <Route path="examenes/nuevo" element={<NewExamScreen />} />
         <Route path="examenes/:examId" element={<ExamScreen />} />
         <Route path="examenes/:examId/material/:materialId" element={<MaterialScreen />} />
+        <Route path="examenes/:examId/explicaciones/:explainerId" element={<ExplainerScreen />} />
         <Route path="examenes/:examId/resumen" element={<SummaryScreen />} />
         <Route path="periodos/:periodId" element={<PeriodScreen />} />
         <Route path="ajustes" element={<SettingsScreen student={student} />} />

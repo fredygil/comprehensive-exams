@@ -156,6 +156,15 @@ export const strings = {
       name: 'Nombre',
       rename: 'Cambiar nombre',
     },
+    /** Reading progress: "12 / 30 páginas", plus "· 1 con error" when some failed. */
+    progress: ({ read, failed, total }: { read: number; failed: number; total: number }) =>
+      `${read} / ${total} ${total === 1 ? 'página' : 'páginas'}` +
+      (failed > 0 ? ` · ${failed} con error` : ''),
+    /** While the Reading Queue is paused (offline, invalid key, no credit). */
+    paused: {
+      message: 'La lectura de páginas está en pausa.',
+      retry: 'Reintentar',
+    },
     page: {
       /** The alt text of a Page's original scan: "Página 1: original". */
       original: (number: number) => `Página ${number}: original`,
@@ -167,7 +176,29 @@ export const strings = {
       save: 'Guardar texto',
       cancel: 'Cancelar',
       edited: 'Editado por ti.',
+      retry: 'Reintentar',
     },
+  },
+
+  explainers: {
+    title: 'Explicaciones',
+    help: 'Una explicación más profunda de un tema, escrita con fuentes de internet.',
+    list: 'Tus explicaciones',
+    empty: 'Aún no tienes explicaciones.',
+    suggest: 'Sugerir temas',
+    suggesting: 'Buscando temas…',
+    suggested: 'Temas sugeridos',
+    topic: 'Tema',
+    topicPlaceholder: 'Escribe un tema, p. ej. «fracciones equivalentes»',
+    create: 'Crear explicación',
+    creating: (topic: string) => `Escribiendo la explicación de «${topic}»…`,
+    sources: 'Fuentes',
+    noSources: 'El modelo no citó fuentes para esta explicación.',
+    backToExam: (subject: string) => `Volver a ${subject}`,
+    needsReadPage: 'Agrega material y espera a que se lea al menos una página.',
+    /** Pages the topic suggestions leave out because they are unread or failed. */
+    notIncluded: (pages: number) =>
+      pages === 1 ? '1 página aún no se incluye.' : `${pages} páginas aún no se incluyen.`,
   },
 
   summary: {
@@ -198,6 +229,11 @@ export const strings = {
       title: '¿Eliminar este examen?',
       item: (subject: string, period: string) => `El examen de ${subject} de ${period}`,
     },
+    explainer: {
+      action: 'Eliminar explicación',
+      title: '¿Eliminar esta explicación?',
+      item: (topic: string) => `La explicación «${topic}»`,
+    },
     subject: {
       action: 'Eliminar materia',
       title: (subject: string) => `¿Eliminar la materia ${subject}?`,
@@ -214,6 +250,7 @@ export const strings = {
     examParts: {
       materials: (n: number) => (n === 1 ? '1 material' : `${n} materiales`),
       summary: () => 'El resumen',
+      explainers: (n: number) => (n === 1 ? '1 explicación' : `${n} explicaciones`),
     } satisfies Record<ExamPartKind, (count: number) => string>,
   },
 

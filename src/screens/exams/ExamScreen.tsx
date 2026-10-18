@@ -4,6 +4,7 @@ import { useServices } from '../../app/services'
 import { examConfirmation } from '../../components/confirmations'
 import { DeleteWithConfirmation } from '../../components/DeleteWithConfirmation'
 import { strings } from '../../strings'
+import { ExplainersSection } from '../explainers/ExplainersSection'
 import { MaterialSection } from '../material/MaterialSection'
 import { SummarySection } from '../summary/SummarySection'
 import { ExamDateSection } from './ExamDateSection'
@@ -28,6 +29,7 @@ export function ExamScreen() {
       <ExamDateSection exam={exam} />
       <MaterialSection exam={exam} />
       <SummarySection exam={exam} />
+      <ExplainersSection exam={exam} />
       <div>
         <DeleteWithConfirmation
           action={strings.deletion.exam.action}

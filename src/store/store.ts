@@ -124,12 +124,41 @@ export type Page = {
   failure: GatewayErrorKind | null
 }
 
+/** How far reading a Material has got: Pages read and failed, out of all its Pages. */
+export type ReadingProgress = { read: number; failed: number; total: number }
+
+export function readingProgress(pages: Pick<Page, 'status'>[]): ReadingProgress {
+  return {
+    read: pages.filter((page) => page.status === 'read').length,
+    failed: pages.filter((page) => page.status === 'failed').length,
+    total: pages.length,
+  }
+}
+
 /** A Material to add: its name and its Pages' originals, in order. */
 export type MaterialDraft = {
   name: string
   sourceFileName: string
   pages: PageOriginal[]
 }
+
+/** A web page an Explainer was written from. */
+export type Source = { url: string; title: string }
+
+/** A deeper, web-sourced explanation of one topic of an Exam. */
+export type Explainer = {
+  id: number
+  examId: number
+  topic: string
+  /** Markdown with LaTeX math. */
+  markdown: string
+  /** The web pages it cites, in order, each once. */
+  sources: Source[]
+  /** When it was generated (ms since the epoch). */
+  createdAt: number
+}
+
+export type ExplainerDraft = Pick<Explainer, 'topic' | 'markdown' | 'sources'>
 
 /**
  * A study guide of the whole Exam, organized by topic; an Exam has at most
@@ -167,7 +196,7 @@ export type SummaryState = {
  * 'explainers', 'quizzes', ...), with a line in `examParts` below and its
  * text in `strings.deletion.examParts`.
  */
-export type ExamPartKind = 'materials' | 'summary'
+export type ExamPartKind = 'materials' | 'summary' | 'explainers'
 
 /** How much of one kind of data an Exam holds, e.g. { kind: 'materials', count: 3 }. */
 export type ExamPartCount = { kind: ExamPartKind; count: number }
@@ -198,6 +227,7 @@ class Database extends Dexie {
   // Kept apart from `pages` so listing Pages never loads their scans.
   // Bytes are stored as an ArrayBuffer: fake-indexeddb (tests) drops Blobs.
   pageOriginals!: EntityTable<PageOriginalRow, 'pageId'>
+  explainers!: EntityTable<Explainer, 'id'>
   // Keyed by examId: at most one Summary per Exam.
   summaries!: EntityTable<Summary, 'examId'>
 
@@ -213,6 +243,7 @@ class Database extends Dexie {
       materials: '++id, examId',
       pages: '++id, materialId, status',
       pageOriginals: 'pageId',
+      explainers: '++id, examId',
       summaries: 'examId',
     })
   }
@@ -255,6 +286,14 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       count: (examId) => db.summaries.where('examId').equals(examId).count(),
       delete: async (examIds) => {
         await db.summaries.bulkDelete(examIds)
+      },
+    },
+    {
+      kind: 'explainers',
+      tables: [db.explainers],
+      count: (examId) => db.explainers.where('examId').equals(examId).count(),
+      delete: async (examIds) => {
+        await db.explainers.where('examId').anyOf(examIds).delete()
       },
     },
   ]
@@ -586,6 +625,15 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       })
     },
 
+    /** Reading progress of each of an Exam's Materials, by Material id. */
+    async examReadingProgress(examId: number): Promise<Map<number, ReadingProgress>> {
+      const materialIds = await db.materials.where('examId').equals(examId).primaryKeys()
+      const pages = await db.pages.where('materialId').anyOf(materialIds).toArray()
+      return new Map(
+        materialIds.map((id) => [id, readingProgress(pages.filter((page) => page.materialId === id))]),
+      )
+    },
+
     // Page reading (the Reading Queue). Each is a no-op if the Page is gone,
     // or if the Student has edited it: reading never overwrites her text.
 
@@ -614,7 +662,33 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
 
     /** Pages left 'reading' when the app was closed go back to 'unread'. */
     async requeueInterruptedPages() {
-      await db.pages.where('status').equals('reading').modify({ status: 'unread' })
+      await db.pages
+        .where('status')
+        .equals('reading')
+        .filter((page) => !page.editedByStudent)
+        .modify({ status: 'unread' })
+    },
+
+    // Explainers. Adding Material never makes them outdated.
+
+    /** Stores a new Explainer for the Exam; returns its id. */
+    async addExplainer(examId: number, draft: ExplainerDraft): Promise<number> {
+      return db.explainers.add({ examId, ...draft, createdAt: Date.now() })
+    },
+
+    /** An Exam's Explainers, newest first. */
+    async examExplainers(examId: number): Promise<Explainer[]> {
+      const explainers = await db.explainers.where('examId').equals(examId).toArray()
+      return explainers.sort((a, b) => b.createdAt - a.createdAt || b.id - a.id)
+    },
+
+    /** The Explainer, or null if there is none with that id (e.g. it was deleted). */
+    async getExplainer(id: number): Promise<Explainer | null> {
+      return (await db.explainers.get(id)) ?? null
+    },
+
+    async deleteExplainer(id: number) {
+      await db.explainers.delete(id)
     },
 
     // The Summary. It is Outdated when the Exam's material revision or its
