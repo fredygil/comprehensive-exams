@@ -14,6 +14,7 @@
 // pauses the whole queue until start() is called again.
 import { GatewayError, type GatewayErrorKind } from '../gateway/errors'
 import type { ModelGateway } from '../gateway/gateway'
+import { promptContext } from '../prompts/context'
 import { readPagePrompt } from '../prompts/readPage'
 import type { Page, Store } from '../store/store'
 
@@ -89,10 +90,7 @@ export function createReadingQueue({ store, gateway, wait = sleep }: ReadingQueu
       const original = await store.getPageOriginal(page.id)
       // Deleted while waiting in line: nothing to read.
       if (!exam || !student || !original) return null
-      const prompt = readPagePrompt({
-        language: exam.subject.language,
-        gradeLevel: student.gradeLevel,
-      })
+      const prompt = readPagePrompt(promptContext(exam, student))
       const text = await readWithRetries({ prompt, original })
       if (stale()) return null
       await store.markPageRead(page.id, text)

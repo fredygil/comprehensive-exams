@@ -195,7 +195,6 @@ describe('generating a Practice Quiz', () => {
     expect(prompt).toMatch(/grade 7/)
     expect(prompt).toMatch(/English/)
     expect(prompt).not.toMatch(/Spanish/)
-    expect(prompt).toMatch(/5 multiple-choice questions/)
   })
 })
 

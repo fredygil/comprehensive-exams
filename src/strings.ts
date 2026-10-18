@@ -237,9 +237,6 @@ export const strings = {
     noSources: 'El modelo no citó fuentes para esta explicación.',
     backToExam: (subject: string) => `Volver a ${subject}`,
     needsReadPage: 'Agrega material y espera a que se lea al menos una página.',
-    /** Pages the topic suggestions leave out because they are unread or failed. */
-    notIncluded: (pages: number) =>
-      pages === 1 ? '1 página aún no se incluye.' : `${pages} páginas aún no se incluyen.`,
   },
 
   /** Practice Quizzes: starting one, answering it, and its Score and Feedback. */

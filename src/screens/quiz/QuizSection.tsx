@@ -2,28 +2,16 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { useServices } from '../../app/services'
+import { ModelCallError } from '../../components/ModelCallError'
+import { useModelCall } from '../../components/useModelCall'
 import { NeedsKeyNotice, useHasKey } from '../../components/NeedsKey'
 import { Section } from '../../components/Section'
-import { GatewayError, type GatewayErrorKind } from '../../gateway/errors'
-import type { Exam, Material, Store } from '../../store/store'
+import { examTextOf, type Exam } from '../../store/store'
 import { strings } from '../../strings'
 import { InProgressQuizzes } from './InProgressQuizzes'
 
 const COUNTS = Array.from({ length: 20 }, (_, i) => i + 1)
 const DEFAULT_COUNT = 10
-
-/** A Material the quiz can cover, with how many of its Pages are read and how many are not (unread or failed). */
-type MaterialScope = { material: Material; readPages: number; notIncluded: number }
-
-async function materialScopes(store: Store, examId: number): Promise<MaterialScope[]> {
-  const scopes: MaterialScope[] = []
-  for (const material of await store.examMaterials(examId)) {
-    const pages = await store.materialPages(material.id)
-    const readPages = pages.filter((page) => page.status === 'read').length
-    scopes.push({ material, readPages, notIncluded: pages.length - readPages })
-  }
-  return scopes
-}
 
 /**
  * "Practicar" on the Exam screen: how many Questions and, when the Exam has
@@ -34,19 +22,20 @@ export function QuizSection({ exam }: { exam: Exam }) {
   const { store, quizMaker } = useServices()
   const navigate = useNavigate()
   const hasKey = useHasKey()
-  const materials = useLiveQuery(() => materialScopes(store, exam.id), [store, exam.id])
+  const examText = useLiveQuery(() => store.examText(exam.id), [store, exam.id])
+  const materials = examText?.materials
   const [count, setCount] = useState(DEFAULT_COUNT)
   // Left-out Materials rather than chosen ones, so Material added meanwhile is included.
   const [excluded, setExcluded] = useState<ReadonlySet<number>>(new Set())
   const [creating, setCreating] = useState(false)
-  const [failure, setFailure] = useState<GatewayErrorKind | null>(null)
+  const modelCall = useModelCall()
   const text = strings.quiz
 
-  const hasReadPages = materials?.some((scope) => scope.readPages > 0)
-  const chosen = materials?.filter(({ material }) => !excluded.has(material.id)) ?? []
-  const noneChosen = chosen.length === 0 && excluded.size > 0
-  const chosenReadPages = chosen.reduce((sum, scope) => sum + scope.readPages, 0)
-  const notIncluded = chosen.reduce((sum, scope) => sum + scope.notIncluded, 0)
+  const hasReadPages = examText && examText.readPages > 0
+  const chosen = examTextOf(materials?.filter(({ material }) => !excluded.has(material.id)) ?? [])
+  const noneChosen = chosen.materials.length === 0 && excluded.size > 0
+  const chosenReadPages = chosen.readPages
+  const notIncluded = chosen.notIncluded
 
   function toggle(materialId: number) {
     const next = new Set(excluded)
@@ -57,16 +46,11 @@ export function QuizSection({ exam }: { exam: Exam }) {
   async function start(event: FormEvent) {
     event.preventDefault()
     setCreating(true)
-    setFailure(null)
-    try {
-      const materialIds = excluded.size ? chosen.map(({ material }) => material.id) : undefined
-      const quizId = await quizMaker.createPracticeQuiz(exam.id, { count, materialIds })
-      navigate(`/examenes/${exam.id}/quiz/${quizId}`)
-    } catch (error) {
-      if (!(error instanceof GatewayError)) throw error
-      setFailure(error.kind)
-      setCreating(false)
-    }
+    const materialIds = excluded.size ? chosen.materials.map(({ material }) => material.id) : undefined
+    // null: dropped, because the Exam was deleted or a backup restored meanwhile.
+    const quizId = await modelCall.run(() => quizMaker.createPracticeQuiz(exam.id, { count, materialIds }))
+    if (quizId == null) setCreating(false)
+    else navigate(`/examenes/${exam.id}/quiz/${quizId}`)
   }
 
   return (
@@ -109,11 +93,7 @@ export function QuizSection({ exam }: { exam: Exam }) {
               {text.creating}
             </p>
           )}
-          {failure && (
-            <p role="alert" className="error">
-              {strings.errors[failure]}
-            </p>
-          )}
+          <ModelCallError error={modelCall.error} />
           {hasReadPages && notIncluded > 0 && <p className="notice">{text.notIncluded(notIncluded)}</p>}
           {!hasReadPages && <p className="hint">{text.needsReadPages}</p>}
           {noneChosen && <p className="hint">{text.needsMaterial}</p>}

@@ -9,6 +9,7 @@
 // is a repeat, and its quiz is flagged mayRepeat.
 import { GatewayError } from '../gateway/errors'
 import type { ModelGateway, StructuredSchema } from '../gateway/gateway'
+import { promptContext, withReadPages } from '../prompts/context'
 import { practiceQuizPrompt } from '../prompts/practiceQuiz'
 import type { Material, QuestionDraft, Store } from '../store/store'
 
@@ -83,7 +84,8 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
     /**
      * Generates `count` (1–20) Questions from the read Pages of the chosen
      * Materials (`materialIds`; all of the Exam's by default) and stores them
-     * as a new In Progress Practice Quiz. Returns its id.
+     * as a new In Progress Practice Quiz. Returns its id, or null if it was
+     * dropped because its Exam was deleted, or a backup restored, meanwhile.
      * Gateway failures are thrown as GatewayError; a reply with no usable
      * Question is BadResponse. The model may write fewer than asked; extra
      * ones are dropped.
@@ -91,23 +93,22 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
     async createPracticeQuiz(
       examId: number,
       { count, materialIds }: { count: number; materialIds?: number[] },
-    ): Promise<number> {
+    ): Promise<number | null> {
+      const startedIn = store.epoch()
       const exam = await store.getExam(examId)
       const student = await store.getStudent()
       if (!exam || !student) throw new Error('createPracticeQuiz: no such Exam, or no Student')
-      const sources = (await store.examRecognizedText(examId)).filter(
-        ({ material }) => !materialIds || materialIds.includes(material.id),
-      )
+      const sources = withReadPages((await store.examText(examId, materialIds)).materials)
       const earlierPrompts = await store.examQuestionPrompts(examId)
       const materials = new Map<string, Material>(
         sources.map(({ material }) => [String(material.id), material]),
       )
 
       const prompt = practiceQuizPrompt(
-        { language: exam.subject.language, gradeLevel: student.gradeLevel },
+        promptContext(exam, student),
         {
           count,
-          materials: sources.map(({ material, pages }) => ({ id: String(material.id), pages })),
+          materials: sources,
           earlierPrompts: unique(earlierPrompts),
         },
       )
@@ -131,22 +132,27 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
       })
       const asked = new Set(earlierPrompts.map(normalizedPrompt))
       const mayRepeat = questions.some((question) => asked.has(normalizedPrompt(question.prompt)))
-      return store.addPracticeQuiz(examId, questions, { mayRepeat })
+      return store.addPracticeQuiz(examId, questions, { mayRepeat, startedIn })
     },
 
     /**
      * Makes an In Progress Mistakes Quiz of `count` (at most 20) of the
      * Exam's current Mistakes, picked and ordered at random. It reuses the
-     * Question records as they are (options in the order first shown), with
-     * no model call, so it works offline. Returns its id.
+     * Question records, with no model call, so it works offline, but shows
+     * their options in a new order, the correct ones placed as in a Practice
+     * Quiz. Returns its id.
      */
     async createMistakesQuiz(examId: number, count: number): Promise<number> {
       const mistakes = await store.mistakesFor(examId)
       const picked = shuffled(mistakes).slice(0, Math.min(count, MAX_QUESTIONS))
       if (picked.length === 0) throw new Error('createMistakesQuiz: the Exam has no Mistakes')
+      const positions = correctPositions(picked.length)
       return store.addMistakesQuiz(
         examId,
-        picked.map((question) => question.id),
+        picked.map((question, i) => ({
+          questionId: question.id,
+          optionOrder: orderWithCorrectAt(question.correctIndex, positions[i]),
+        })),
       )
     },
   }
@@ -173,12 +179,17 @@ function placeCorrectOption(
   question: GeneratedQuestion,
   position: number,
 ): { options: string[]; correctIndex: number } {
-  const correct = question.options[question.correctIndex]
-  const wrong = shuffled(question.options.filter((_, i) => i !== question.correctIndex))
-  const options = [...wrong.slice(0, position), correct, ...wrong.slice(position)].map((option) =>
-    option.trim(),
-  )
-  return { options, correctIndex: position }
+  const order = orderWithCorrectAt(question.correctIndex, position)
+  return { options: order.map((i) => question.options[i].trim()), correctIndex: position }
+}
+
+/**
+ * An order to show four options in (indexes into them) that puts the correct
+ * one (`correctIndex`) at `position` and the wrong ones around it at random.
+ */
+function orderWithCorrectAt(correctIndex: number, position: number): number[] {
+  const wrong = shuffled([...Array(OPTION_COUNT).keys()].filter((i) => i !== correctIndex))
+  return [...wrong.slice(0, position), correctIndex, ...wrong.slice(position)]
 }
 
 /**

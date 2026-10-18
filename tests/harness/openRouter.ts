@@ -155,6 +155,18 @@ function answer(answer: Answer): Response | Promise<Response> {
 }
 
 /**
+ * A handler that holds every matching request until the test calls
+ * `answer(value)`, then answers each with `respond(value)`, e.g. to do
+ * something while a model call is still out. `server.use(held.handler)`.
+ */
+function heldHandler<T>(matches: (body: ChatBody) => boolean, respond: (value: T) => Response) {
+  let answer!: (value: T) => void
+  const answered = new Promise<T>((resolve) => (answer = resolve))
+  const handler = chatHandler(matches, async () => respond(await answered))
+  return { handler, answer }
+}
+
+/**
  * Fakes for generateStructured calls in one schema: they answer only chat
  * completions whose json_schema response format has this name, so each
  * structured operation (topics, practice_quiz, ...) is scripted on its own.
@@ -170,6 +182,8 @@ function structured(schemaName: string) {
       chatHandler(matches, () => failure(status, `HTTP ${status}`, metadata)),
     /** The network is down (fetch rejects). */
     offline: () => chatHandler(matches, () => HttpResponse.error()),
+    /** Every request waits until the test calls `answer(value)` (see heldHandler). */
+    held: () => heldHandler(matches, (value: unknown) => HttpResponse.json(chatCompletion(JSON.stringify(value)))),
   }
 }
 
@@ -251,6 +265,11 @@ export const openRouter = {
     status: (status: number, metadata?: Record<string, unknown>) =>
       chatHandler(isWebSearch, () => failure(status, `HTTP ${status}`, metadata)),
     offline: () => chatHandler(isWebSearch, () => HttpResponse.error()),
+    /** Every request waits until the test calls `answer({ markdown, annotations? })` (see heldHandler). */
+    held: () =>
+      heldHandler(isWebSearch, ({ markdown, annotations = [] }: { markdown: string; annotations?: unknown[] }) =>
+        HttpResponse.json(chatCompletion(markdown, { annotations })),
+      ),
   },
 
   key: {

@@ -1,11 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { useServices } from '../../app/services'
+import { ModelCallError } from '../../components/ModelCallError'
+import { useModelCall } from '../../components/useModelCall'
 import { NeedsKeyNotice, useHasKey } from '../../components/NeedsKey'
-import { GatewayError } from '../../gateway/errors'
 import type { Exam, SummaryState } from '../../store/store'
 import { strings } from '../../strings'
-import { examText } from '../../studyAids/examText'
 import { generateSummary } from '../../studyAids/summary'
 
 /**
@@ -20,10 +20,10 @@ export function SummaryActions(props: {
 }) {
   const { exam, state } = props
   const services = useServices()
-  const scope = useLiveQuery(() => examText(services.store, exam.id), [services.store, exam.id])
+  const scope = useLiveQuery(() => services.store.examText(exam.id), [services.store, exam.id])
   const hasKey = useHasKey()
   const [generating, setGenerating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const modelCall = useModelCall()
   const text = strings.summary
   const readPages = scope?.readPages ?? 0
   // Needs the key and at least one read Page (spec: availability rules).
@@ -33,13 +33,8 @@ export function SummaryActions(props: {
 
   async function generate() {
     setGenerating(true)
-    setError(null)
     try {
-      await generateSummary(services, exam.id)
-      props.onGenerated?.()
-    } catch (error) {
-      if (!(error instanceof GatewayError)) throw error
-      setError(strings.errors[error.kind])
+      if (await modelCall.run(() => generateSummary(services, exam.id))) props.onGenerated?.()
     } finally {
       setGenerating(false)
     }
@@ -64,11 +59,7 @@ export function SummaryActions(props: {
         </button>
       </div>
       {generating && <p role="status">{text.generating}</p>}
-      {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
+      <ModelCallError error={modelCall.error} />
     </div>
   )
 }
