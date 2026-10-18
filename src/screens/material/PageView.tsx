@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { useServices } from '../../app/services'
 import { NeedsKeyNotice, useHasKey } from '../../components/NeedsKey'
+import { ReadingPausedNotice, readingPaused, useReadingPause } from '../../components/ReadingPaused'
 import { RichText } from '../../components/RichText'
 import { PageViewer } from '../../pageViewer/PageViewer'
 import type { Page } from '../../store/store'
@@ -27,12 +28,15 @@ export function PageView({ page }: { page: Page }) {
 function PageText({ page }: { page: Page }) {
   const { readingQueue } = useServices()
   const hasKey = useHasKey()
+  const pause = useReadingPause()
   const text = strings.material.page
   switch (page.status) {
     case 'unread':
     case 'reading':
       // Without a key the Page waits in line until one is saved.
-      return hasKey === false ? <NeedsKeyNotice /> : <p className="hint">{text.reading}</p>
+      if (hasKey === false) return <NeedsKeyNotice />
+      if (readingPaused(pause)) return <ReadingPausedNotice reason={pause} />
+      return <p className="hint">{text.reading}</p>
     case 'failed':
       return (
         <div role="alert" className="stack">

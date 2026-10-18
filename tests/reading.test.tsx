@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { photo } from './harness/files'
 import { OPENROUTER, openRouter, openRouterRequests, server } from './harness/openRouter'
@@ -122,5 +122,30 @@ describe('when the model is busy or the service is down', () => {
     const text = within(screen.getByRole('region', { name: 'Texto reconocido' }))
     expect(await text.findByRole('alert')).toHaveTextContent('El modelo está ocupado.')
     expect(readRequests().length).toBeGreaterThan(1)
+  })
+})
+
+describe('when the tablet is offline', () => {
+  it('pauses reading with a message, and picks up again once it is back online', async () => {
+    server.use(openRouter.readPage.offline())
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [{ subject: 'Matemáticas', period: q1 }] })
+    await openExam(app)
+
+    await app.user.upload(screen.getByLabelText('Agregar material'), [photo('a.jpg'), photo('b.jpg')])
+
+    const material = within(screen.getByRole('region', { name: 'Material' }))
+    const paused = await material.findByRole('alert')
+    expect(paused).toHaveTextContent('La lectura de páginas está en pausa.')
+    expect(paused).toHaveTextContent('No hay conexión a internet.')
+    expect(within(await materialItem('a')).getByText('0 / 1 página')).toBeInTheDocument()
+    expect(within(await materialItem('b')).getByText('0 / 1 página')).toBeInTheDocument()
+    expect(readRequests()).toHaveLength(1)
+
+    server.use(openRouter.readPage.texts(['Texto de a.', 'Texto de b.']))
+    act(() => void window.dispatchEvent(new Event('online')))
+
+    expect(await within(await materialItem('b')).findByText('1 / 1 página')).toBeInTheDocument()
+    expect(within(await materialItem('a')).getByText('1 / 1 página')).toBeInTheDocument()
+    expect(material.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

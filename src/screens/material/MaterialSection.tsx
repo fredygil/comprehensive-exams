@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router'
 import { useServices } from '../../app/services'
+import { ReadingPausedNotice, readingPaused, useReadingPause } from '../../components/ReadingPaused'
 import { Section } from '../../components/Section'
 import { ACCEPTED_TYPES, UnsupportedFileError, materialFromFile } from '../../pageSplitter/pageSplitter'
 import type { Exam, MaterialDraft } from '../../store/store'
@@ -12,6 +13,7 @@ export function MaterialSection({ exam }: { exam: Exam }) {
   const { store, readingQueue } = useServices()
   const materials = useLiveQuery(() => store.examMaterials(exam.id), [store, exam.id])
   const progress = useLiveQuery(() => store.examReadingProgress(exam.id), [store, exam.id])
+  const pause = useReadingPause()
   const [rejected, setRejected] = useState<string[]>([])
   const text = strings.material
 
@@ -39,6 +41,7 @@ export function MaterialSection({ exam }: { exam: Exam }) {
     <Section title={text.title}>
       <div className="stack">
         {materials?.length === 0 && <p>{text.empty}</p>}
+        {readingPaused(pause) && <ReadingPausedNotice reason={pause} />}
         {materials && materials.length > 0 && (
           <ul className="material-list">
             {materials.map((material) => (
