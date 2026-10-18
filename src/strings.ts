@@ -70,6 +70,12 @@ export const strings = {
     },
   },
 
+  needsKey: {
+    message:
+      'Configura la clave de OpenRouter en Ajustes para usar las funciones con IA (leer páginas, resúmenes, quizzes y explicaciones).',
+    action: 'Configurar la clave',
+  },
+
   /** One message per Model Gateway error kind (src/gateway/errors.ts). */
   errors: {
     NoKey: 'Falta la clave de OpenRouter. Pídele a un adulto que la configure en Ajustes.',
