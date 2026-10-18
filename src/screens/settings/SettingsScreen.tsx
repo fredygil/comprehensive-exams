@@ -9,6 +9,8 @@ import { StudentSection } from './StudentSection'
 export function SettingsScreen({ student }: { student: Student }) {
   const { store } = useServices()
   const settings = useLiveQuery(() => store.getSettings(), [store])
+  // Render the screen whole once loaded, so its heading means it is ready.
+  if (!settings) return null
 
   return (
     <main className="screen">
@@ -16,9 +18,9 @@ export function SettingsScreen({ student }: { student: Student }) {
       <div className="settings-grid">
         <div className="stack">
           <StudentSection student={student} />
-          {settings && <KeySection savedKey={settings.openRouterKey} />}
+          <KeySection savedKey={settings.openRouterKey} />
         </div>
-        {settings && <ModelsSection savedModels={settings.models} />}
+        <ModelsSection savedModels={settings.models} />
       </div>
     </main>
   )

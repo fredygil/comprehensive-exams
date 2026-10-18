@@ -80,7 +80,8 @@ describe('Settings: the OpenRouter key', () => {
 
   it.each([
     ['offline', openRouter.key.offline(), 'No hay conexión a internet. Conéctate e inténtalo de nuevo.'],
-    ['out of credit', openRouter.key.status(402), 'Se acabó el saldo de la clave de OpenRouter. Pídele a un adulto que lo recargue.'],
+    ['out of credit (402)', openRouter.key.status(402), 'Se acabó el saldo de la clave de OpenRouter. Pídele a un adulto que lo recargue.'],
+    ['over the key limit (403)', openRouter.key.status(403, { limit_source: 'openrouter_key_limit' }),'Se acabó el saldo de la clave de OpenRouter. Pídele a un adulto que lo recargue.'],
     ['rate limited', openRouter.key.status(429), 'El modelo está ocupado. Espera un momento e inténtalo de nuevo.'],
     ['down', openRouter.key.status(503), 'El servicio no está disponible ahora. Inténtalo de nuevo en un rato.'],
   ])('explains in Spanish when OpenRouter is %s', async (_, handler, message) => {

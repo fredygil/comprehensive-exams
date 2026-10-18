@@ -25,8 +25,9 @@ function keyBody(limit: KeyLimit | null) {
   }
 }
 
-function failure(status: number, message: string) {
-  return HttpResponse.json({ error: { message, code: status } }, { status })
+/** OpenRouter's error body: { error: { code, message, metadata? } }. */
+function failure(status: number, message: string, metadata?: Record<string, unknown>) {
+  return HttpResponse.json({ error: { code: status, message, ...(metadata && { metadata }) } }, { status })
 }
 
 /** Scripted responses, grouped by endpoint. Each returns an MSW handler. */
@@ -37,8 +38,8 @@ export const openRouter = {
       http.get(`${OPENROUTER}/key`, () => HttpResponse.json(keyBody(limit))),
     invalid: () =>
       http.get(`${OPENROUTER}/key`, () => failure(401, 'User not found.')),
-    status: (status: number) =>
-      http.get(`${OPENROUTER}/key`, () => failure(status, `HTTP ${status}`)),
+    status: (status: number, metadata?: Record<string, unknown>) =>
+      http.get(`${OPENROUTER}/key`, () => failure(status, `HTTP ${status}`, metadata)),
     /** The network is down (fetch rejects). */
     offline: () => http.get(`${OPENROUTER}/key`, () => HttpResponse.error()),
   },

@@ -7,10 +7,13 @@ export function HomeScreen({ student }: { student: Student }) {
   const hasKey = useHasKey()
   const [hour] = useState(() => new Date().getHours())
 
+  // Render the screen whole once loaded, so its heading means it is ready.
+  if (hasKey === undefined) return null
+
   return (
     <main className="screen">
       <h1>{strings.home.greeting(student.name, hour)}</h1>
-      {hasKey === false && <NeedsKeyNotice />}
+      {!hasKey && <NeedsKeyNotice />}
     </main>
   )
 }

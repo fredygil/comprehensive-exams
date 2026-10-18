@@ -19,7 +19,7 @@ describe('without an OpenRouter key', () => {
     const app = await renderApp({ student: ana })
     await app.user.click(await screen.findByRole('link', { name: 'Configurar la clave' }))
 
-    await app.user.type(screen.getByLabelText('Clave'), 'sk-or-v1-good')
+    await app.user.type(await screen.findByLabelText('Clave'), 'sk-or-v1-good')
     await app.user.click(screen.getByRole('button', { name: 'Guardar clave' }))
     await app.user.click(screen.getByRole('link', { name: 'Inicio' }))
 

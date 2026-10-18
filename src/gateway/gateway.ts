@@ -4,7 +4,7 @@
 // headers, and turns failures into GatewayError (see errors.ts). Planned
 // operations (spec #1): readPage, generateStructured, generateWithWebSearch,
 // checkKey. Add each one here, next to `send`.
-import { GatewayError, errorForStatus } from './errors'
+import { GatewayError, errorForResponse } from './errors'
 
 export const OPENROUTER_API = 'https://openrouter.ai/api/v1'
 
@@ -46,13 +46,12 @@ export function createModelGateway(options: ModelGatewayOptions) {
       throw new GatewayError('Offline', String(error))
     }
 
-    if (!response.ok) throw new GatewayError(errorForStatus(response.status), `HTTP ${response.status}`)
-
-    try {
-      return await response.json()
-    } catch {
-      throw new GatewayError('BadResponse', 'body is not JSON')
+    const body: unknown = await response.json().catch(() => undefined)
+    if (!response.ok) {
+      throw new GatewayError(errorForResponse(response.status, body), `HTTP ${response.status}`)
     }
+    if (body === undefined) throw new GatewayError('BadResponse', 'body is not JSON')
+    return body
   }
 
   return {

@@ -1,5 +1,5 @@
 import { screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { setClock } from './harness/clock'
 import { renderApp } from './harness/renderApp'
 
@@ -53,6 +53,19 @@ describe('first run', () => {
     const app = await renderApp()
     await screen.findByLabelText('¿Cómo te llamas?')
 
-    expect(app.storage.persist).toHaveBeenCalled()
+    await vi.waitFor(() => expect(app.storage.persist).toHaveBeenCalled())
+  })
+
+  it('does not ask again once the browser has agreed', async () => {
+    const app = await renderApp()
+    await screen.findByLabelText('¿Cómo te llamas?')
+    await vi.waitFor(() => expect(app.storage.persist).toHaveBeenCalled())
+    app.storage.persist.mockClear()
+
+    await app.reopen()
+    await screen.findByLabelText('¿Cómo te llamas?')
+    await vi.waitFor(() => expect(app.storage.persisted).toHaveBeenCalledTimes(2))
+
+    expect(app.storage.persist).not.toHaveBeenCalled()
   })
 })
