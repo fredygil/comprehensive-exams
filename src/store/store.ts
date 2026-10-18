@@ -206,6 +206,9 @@ export type PracticeQuiz = {
   submittedAt: number | null
 }
 
+/** A Question's new Mistake status, decided when its quiz is submitted. */
+export type MistakeChange = { questionId: number; isMistake: boolean }
+
 /** A quiz with its Questions, in the quiz's order. */
 export type QuizWithQuestions = { quiz: PracticeQuiz; questions: Question[] }
 
@@ -788,9 +791,14 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     /**
      * Makes an In Progress quiz Submitted with the Score `score` gives its
      * final answers (read in the same transaction, so an answer saved just
-     * before counts).
+     * before counts), and gives its Questions the Mistake status `mistakes`
+     * decides from the same answers.
      */
-    async submitQuiz(quizId: number, score: (quiz: QuizWithQuestions) => number) {
+    async submitQuiz(
+      quizId: number,
+      score: (quiz: QuizWithQuestions) => number,
+      mistakes: (quiz: QuizWithQuestions) => MistakeChange[] = () => [],
+    ) {
       await db.transaction('rw', [db.quizzes, db.questions], async () => {
         const found = await getQuiz(quizId)
         if (!found || found.quiz.state !== 'inProgress') return
@@ -799,7 +807,19 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
           score: score(found),
           submittedAt: Date.now(),
         })
+        for (const { questionId, isMistake } of mistakes(found)) {
+          await db.questions.update(questionId, { isMistake })
+        }
       })
+    },
+
+    /** The Exam's current Mistakes, oldest Question first. */
+    async mistakesFor(examId: number): Promise<Question[]> {
+      return db.questions
+        .where('examId')
+        .equals(examId)
+        .filter((question) => question.isMistake)
+        .sortBy('id')
     },
 
     async close() {
