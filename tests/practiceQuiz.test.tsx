@@ -1,4 +1,5 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { OPENROUTER, openRouter, openRouterRequests, server, type ScriptedQuestion } from './harness/openRouter'
 import { renderApp, type RenderAppOptions } from './harness/renderApp'
@@ -167,7 +168,7 @@ describe('taking a Practice Quiz', () => {
     expect(await screen.findByRole('radio', { name: 'Incorrecta 1a' })).toBeChecked()
 
     await app.user.click(screen.getByRole('radio', { name: 'Correcta 1' }))
-    expect(await screen.findByRole('radio', { name: 'Correcta 1' })).toBeChecked()
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Correcta 1' })).toBeChecked())
     expect(screen.getByRole('radio', { name: 'Incorrecta 1a' })).not.toBeChecked()
   })
 
@@ -187,5 +188,61 @@ describe('taking a Practice Quiz', () => {
     }
 
     expect(new Set(correctPositions).size).toBeGreaterThan(1)
+  })
+})
+
+describe('submitting a Practice Quiz', () => {
+  it('shows the Score and Feedback for each wrong answer, with the network down', async () => {
+    server.use(
+      openRouter.practiceQuiz.questions([question(1, '1'), question(2, '2'), question(3, '1'), question(4, '2')]),
+    )
+    const app = await renderApp(
+      withMaterial([
+        { name: 'Unidad 1', pages: ['Las fracciones.'] },
+        { name: 'Unidad 2', pages: ['Los decimales.'] },
+      ]),
+    )
+    await openExam(app)
+    await startQuiz(app, 4)
+
+    // Once created, the quiz needs no network.
+    server.use(http.all(`${OPENROUTER}/*`, () => HttpResponse.error()))
+    const sent = openRouterRequests.length
+    for (const choice of ['Correcta 1', 'Incorrecta 2a', 'Incorrecta 3c', 'Correcta 4']) {
+      await app.user.click(await screen.findByRole('radio', { name: choice }))
+      if (choice !== 'Correcta 4') await app.user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    }
+    await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+
+    expect(await screen.findByRole('heading', { name: 'Resultado' })).toBeInTheDocument()
+    expect(screen.getByText('2 / 4')).toBeInTheDocument()
+    const feedback = within(screen.getByRole('region', { name: 'Respuestas incorrectas' }))
+    const items = feedback.getAllByRole('listitem')
+    expect(items).toHaveLength(2)
+    expect(items[0]).toHaveTextContent('Pregunta 2')
+    expect(items[0]).toHaveTextContent('Pregunta número 2')
+    expect(items[0]).toHaveTextContent('Tu respuesta: Incorrecta 2a')
+    expect(items[0]).toHaveTextContent('Respuesta correcta: Correcta 2')
+    expect(items[0]).toHaveTextContent('Explicación 2')
+    expect(items[0]).toHaveTextContent('Material: Unidad 2')
+    expect(items[1]).toHaveTextContent('Tu respuesta: Incorrecta 3c')
+    expect(items[1]).toHaveTextContent('Respuesta correcta: Correcta 3')
+    expect(items[1]).toHaveTextContent('Material: Unidad 1')
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+    expect(openRouterRequests.length).toBe(sent)
+  })
+
+  it('says so when every answer is right', async () => {
+    server.use(openRouter.practiceQuiz.questions(questions(1)))
+    const app = await renderApp(withMaterial([{ name: 'Unidad 1', pages: ['Las fracciones.'] }]))
+    await openExam(app)
+    await startQuiz(app, 1)
+
+    await app.user.click(screen.getByRole('radio', { name: 'Correcta 1' }))
+    await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+
+    expect(await screen.findByText('1 / 1')).toBeInTheDocument()
+    expect(screen.getByText('¡Respondiste todo bien!')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Respuestas incorrectas' })).not.toBeInTheDocument()
   })
 })

@@ -170,6 +170,19 @@ export const strings = {
     questionOf: (n: number, total: number) => `Pregunta ${n} de ${total}`,
     previous: 'Anterior',
     next: 'Siguiente',
+    submit: 'Entregar',
+    results: {
+      title: 'Resultado',
+      /** "14 / 20" */
+      score: (score: number, total: number) => `${score} / ${total}`,
+      allRight: '¡Respondiste todo bien!',
+      wrong: 'Respuestas incorrectas',
+      question: (n: number) => `Pregunta ${n}`,
+      chosen: 'Tu respuesta:',
+      unanswered: 'Sin responder',
+      correct: 'Respuesta correcta:',
+      material: 'Material:',
+    },
   },
 
   /** Delete confirmations: they name everything that will be lost. */

@@ -331,6 +331,14 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     return (await withSubjectAndPeriod(rows)).sort(soonestFirst)
   }
 
+  /** The quiz and its Questions, or null if there is none with that id (e.g. its Exam was deleted). */
+  async function getQuiz(quizId: number): Promise<QuizWithQuestions | null> {
+    const quiz = await db.quizzes.get(quizId)
+    if (!quiz) return null
+    const questions = await db.questions.bulkGet(quiz.items.map((item) => item.questionId))
+    return { quiz, questions: questions.map((question) => question!) }
+  }
+
   async function writeSettings(change: StoredSettings) {
     await db.transaction('rw', db.singletons, async () => {
       const current = await readSettings()
@@ -622,13 +630,7 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       })
     },
 
-    /** The quiz and its Questions, or null if there is none with that id (e.g. its Exam was deleted). */
-    async getQuiz(quizId: number): Promise<QuizWithQuestions | null> {
-      const quiz = await db.quizzes.get(quizId)
-      if (!quiz) return null
-      const questions = await db.questions.bulkGet(quiz.items.map((item) => item.questionId))
-      return { quiz, questions: questions.map((question) => question!) }
-    },
+    getQuiz,
 
     /** Records (or changes) the answer to the quiz's Question at `position`, while it is In Progress. */
     async answerQuizQuestion(quizId: number, position: number, chosenIndex: number) {
@@ -640,12 +642,20 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       })
     },
 
-    /** Makes an In Progress quiz Submitted with its Score. */
-    async submitQuiz(quizId: number, score: number) {
-      await db.transaction('rw', db.quizzes, async () => {
-        const quiz = await db.quizzes.get(quizId)
-        if (!quiz || quiz.state !== 'inProgress') return
-        await db.quizzes.update(quizId, { state: 'submitted', score, submittedAt: Date.now() })
+    /**
+     * Makes an In Progress quiz Submitted with the Score `score` gives its
+     * final answers (read in the same transaction, so an answer saved just
+     * before counts).
+     */
+    async submitQuiz(quizId: number, score: (quiz: QuizWithQuestions) => number) {
+      await db.transaction('rw', [db.quizzes, db.questions], async () => {
+        const found = await getQuiz(quizId)
+        if (!found || found.quiz.state !== 'inProgress') return
+        await db.quizzes.update(quizId, {
+          state: 'submitted',
+          score: score(found),
+          submittedAt: Date.now(),
+        })
       })
     },
 

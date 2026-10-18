@@ -3,8 +3,9 @@ import { Link, Navigate, useParams } from 'react-router'
 import { useServices } from '../../app/services'
 import { strings } from '../../strings'
 import { QuizQuestions } from './QuizQuestions'
+import { QuizResults } from './QuizResults'
 
-/** A Practice Quiz: its Questions one per screen while In Progress. */
+/** A Practice Quiz: its Questions one per screen while In Progress; once Submitted, its Score and Feedback. */
 export function QuizScreen() {
   const { store } = useServices()
   const params = useParams()
@@ -27,7 +28,11 @@ export function QuizScreen() {
         <Link to={`/examenes/${exam.id}`}>{strings.material.backToExam(exam.subject.name)}</Link>
         <h1>{strings.quiz.title}</h1>
       </header>
-      <QuizQuestions quiz={quiz} questions={questions} />
+      {quiz.state === 'inProgress' ? (
+        <QuizQuestions quiz={quiz} questions={questions} />
+      ) : (
+        <QuizResults quiz={quiz} questions={questions} />
+      )}
     </main>
   )
 }

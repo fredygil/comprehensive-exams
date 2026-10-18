@@ -44,6 +44,9 @@ export function QuizQuestions({ quiz, questions }: { quiz: PracticeQuiz; questio
         <button type="button" disabled={position === last} onClick={() => setPosition(position + 1)}>
           {text.next}
         </button>
+        <button type="submit" onClick={() => void quizSession.submit(quiz.id)}>
+          {text.submit}
+        </button>
       </div>
     </section>
   )

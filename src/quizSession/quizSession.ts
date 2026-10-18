@@ -46,9 +46,7 @@ export function createQuizSession({ store }: { store: Store }) {
 
     /** Scores the quiz and makes it Submitted. Works offline. */
     async submit(quizId: number) {
-      const found = await store.getQuiz(quizId)
-      if (!found || found.quiz.state !== 'inProgress') return
-      await store.submitQuiz(quizId, scoreOf(found))
+      await store.submitQuiz(quizId, scoreOf)
     },
   }
 }
