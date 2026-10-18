@@ -168,6 +168,8 @@ export const strings = {
     title: 'Quiz de práctica',
     /** "Pregunta 3 de 10" */
     questionOf: (n: number, total: number) => `Pregunta ${n} de ${total}`,
+    previous: 'Anterior',
+    next: 'Siguiente',
   },
 
   /** Delete confirmations: they name everything that will be lost. */

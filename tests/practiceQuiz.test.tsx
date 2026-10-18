@@ -142,4 +142,50 @@ describe('taking a Practice Quiz', () => {
     expect(screen.getByText('Pregunta número 1')).toBeInTheDocument()
     expect(shownOptions().sort()).toEqual(['Correcta 1', 'Incorrecta 1a', 'Incorrecta 1b', 'Incorrecta 1c'])
   })
+
+  it('shows one Question per screen, back and forth, keeping and changing answers', async () => {
+    server.use(openRouter.practiceQuiz.questions(questions(3)))
+    const app = await renderApp(withMaterial([{ name: 'Unidad 1', pages: ['Las fracciones.'] }]))
+    await openExam(app)
+    await startQuiz(app, 3)
+
+    expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled()
+    await app.user.click(screen.getByRole('radio', { name: 'Incorrecta 1a' }))
+    await app.user.click(screen.getByRole('button', { name: 'Siguiente' }))
+
+    expect(await screen.findByRole('heading', { name: 'Pregunta 2 de 3' })).toBeInTheDocument()
+    expect(screen.getByText('Pregunta número 2')).toBeInTheDocument()
+    expect(screen.queryByText('Pregunta número 1')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('radio').filter((radio) => (radio as HTMLInputElement).checked)).toEqual([])
+    await app.user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    expect(await screen.findByRole('heading', { name: 'Pregunta 3 de 3' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
+
+    await app.user.click(screen.getByRole('button', { name: 'Anterior' }))
+    await app.user.click(screen.getByRole('button', { name: 'Anterior' }))
+    expect(await screen.findByRole('heading', { name: 'Pregunta 1 de 3' })).toBeInTheDocument()
+    expect(await screen.findByRole('radio', { name: 'Incorrecta 1a' })).toBeChecked()
+
+    await app.user.click(screen.getByRole('radio', { name: 'Correcta 1' }))
+    expect(await screen.findByRole('radio', { name: 'Correcta 1' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Incorrecta 1a' })).not.toBeChecked()
+  })
+
+  it('puts the correct option in different positions, not where the model wrote it', async () => {
+    server.use(openRouter.practiceQuiz.questions(questions(8)))
+    const app = await renderApp(withMaterial([{ name: 'Unidad 1', pages: ['Las fracciones.'] }]))
+    await openExam(app)
+    await startQuiz(app, 8)
+
+    const correctPositions: number[] = []
+    for (let n = 1; n <= 8; n++) {
+      await screen.findByRole('heading', { name: `Pregunta ${n} de 8` })
+      const options = shownOptions()
+      expect(options.slice().sort()).toEqual([`Correcta ${n}`, `Incorrecta ${n}a`, `Incorrecta ${n}b`, `Incorrecta ${n}c`])
+      correctPositions.push(options.indexOf(`Correcta ${n}`))
+      if (n < 8) await app.user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    }
+
+    expect(new Set(correctPositions).size).toBeGreaterThan(1)
+  })
 })
