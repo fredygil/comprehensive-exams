@@ -87,11 +87,12 @@ export function createBackup({ store, readingQueue }: { store: Store; readingQue
 
     /**
      * Replaces everything on the tablet with the backup; the OpenRouter key
-     * already here stays. Reading stops first (so no Page is written after
-     * the replace) and picks up the backup's unread Pages afterwards.
+     * already here stays. Reading stops first (a Page still out is dropped,
+     * so its text can't land on a restored Page) and starts again on the
+     * backup's unread Pages.
      */
     async importAll(contents: BackupContents) {
-      await readingQueue.stop()
+      readingQueue.stop()
       try {
         await store.replaceAll(contents.snapshot)
       } catch (error) {

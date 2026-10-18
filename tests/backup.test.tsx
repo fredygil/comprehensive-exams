@@ -80,6 +80,9 @@ async function goHome(app: App) {
   await app.user.click(screen.getByRole('link', { name: 'Inicio' }))
 }
 
+/** On these tablets every chat completion before a quiz is a Page being read. */
+const isReadPageRequest = (request: Request) => request.url === `${OPENROUTER}/chat/completions`
+
 function recognizedText() {
   return within(screen.getByRole('region', { name: 'Texto reconocido' }))
 }
@@ -336,6 +339,34 @@ describe('importing', () => {
       'Esta copia es de una versión más nueva de la app. Actualiza la app e inténtalo de nuevo.',
     )
     await expectNothingReplaced(app)
+  })
+
+  it('doesn’t wait for a Page this tablet is reading, and its late text never lands on her restored Pages', async () => {
+    setClock('2026-10-18T09:00')
+    const old = await renderApp(anasTablet)
+    const backup = await exportBackup(old)
+    await old.close()
+    const held = openRouter.readPage.held()
+    server.use(held.handler)
+    const app = await renderApp({
+      student: { name: 'Sofía', gradeLevel: 7 },
+      openRouterKey: 'sk-or-v1-new-tablet',
+      subjects: [{ name: 'Historia', language: 'es' }],
+      exams: [{ subject: 'Historia', period: q1, materials: [{ name: 'Viejo', pages: [], unreadPages: 1 }] }],
+    })
+    await waitFor(() => expect(openRouterRequests.some(isReadPageRequest)).toBe(true))
+    await openSettings(app)
+
+    await importBackup(app, backup)
+    expect(await screen.findByRole('heading', { name: 'Buenos días, Ana', level: 1 })).toBeInTheDocument()
+    held.answer('Texto de la página de Sofía.')
+
+    await openExam(app)
+    await openMaterial(app, 'Unidad 1')
+    expect(await recognizedText().findByText('Las fracciones tienen numerador.')).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 50)) // let the late answer arrive
+    expect(recognizedText().getByText('Las fracciones tienen numerador.')).toBeInTheDocument()
+    expect(screen.queryByText('Texto de la página de Sofía.')).not.toBeInTheDocument()
   })
 
   it('changes nothing when the backup’s data can’t be stored', async () => {

@@ -49,6 +49,8 @@ export function createReadingQueue({ store, gateway, wait = sleep }: ReadingQueu
   /** Set by start(): there may be new unread Pages. */
   let wanted = false
   let stopped = false
+  /** Goes up on every stop(): a Page sent before it may no longer be the same Page. */
+  let session = 0
   let requeued = false
   let paused: PauseReason | null = null
   const listeners = new Set<() => void>()
@@ -76,6 +78,9 @@ export function createReadingQueue({ store, gateway, wait = sleep }: ReadingQueu
 
   /** Reads one Page. Returns why reading must pause, or null to go on. */
   async function read(page: Page): Promise<PauseReason | null> {
+    const sentIn = session
+    // Stopped meanwhile (closing, or a backup replaced every Page): drop the result.
+    const stale = () => stopped || session !== sentIn
     await store.markPageReading(page.id)
     try {
       const material = await store.getMaterial(page.materialId)
@@ -89,11 +94,12 @@ export function createReadingQueue({ store, gateway, wait = sleep }: ReadingQueu
         gradeLevel: student.gradeLevel,
       })
       const text = await readWithRetries({ prompt, original })
+      if (stale()) return null
       await store.markPageRead(page.id, text)
       return null
     } catch (error) {
       // Closing: the next launch requeues the Page.
-      if (stopped) return null
+      if (stale()) return null
       const kind: GatewayErrorKind = error instanceof GatewayError ? error.kind : 'BadResponse'
       if (isPause(kind)) {
         // Not this Page's fault: it waits in line until reading resumes.
@@ -165,13 +171,13 @@ export function createReadingQueue({ store, gateway, wait = sleep }: ReadingQueu
     },
 
     /**
-     * Stops after the Page being read (the app is closing, or a backup is
-     * about to replace every Page). Resolves once that Page's result is
-     * stored, so nothing is written after it.
+     * Stops reading (the app is closing, or a backup is about to replace
+     * every Page). A Page still out is not waited for: whatever comes back
+     * for it is dropped, even if start() has been called since.
      */
-    async stop() {
+    stop() {
       stopped = true
-      await running
+      session += 1
     },
   }
 }
