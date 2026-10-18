@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useServices } from '../app/services'
 import { GradeLevelSelect } from '../components/GradeLevelSelect'
+import { ImportBackup } from '../components/ImportBackup'
+import { Section } from '../components/Section'
 import { strings } from '../strings'
 
 export function FirstRunScreen() {
@@ -29,6 +31,11 @@ export function FirstRunScreen() {
           {strings.firstRun.start}
         </button>
       </form>
+      {/* A new or reset tablet: her Student comes back with the backup, which ends the first run. */}
+      <Section title={strings.backup.title}>
+        <p className="hint">{strings.backup.firstRun}</p>
+        <ImportBackup onRestored={() => {}} />
+      </Section>
     </main>
   )
 }

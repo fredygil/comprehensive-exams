@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { setClock } from './harness/clock'
-import { pdf, pdfPageNumber } from './harness/files'
+import { pdf, pdfPageNumber, photo } from './harness/files'
 import { OPENROUTER, openRouter, openRouterRequests, server, type ScriptedQuestion } from './harness/openRouter'
 import { renderApp, type RenderAppOptions } from './harness/renderApp'
 
@@ -223,10 +223,134 @@ describe('backup round trip', () => {
     )
   })
 
+  it('can restore on the first-run screen of a new tablet', async () => {
+    const old = await renderApp(anasTablet)
+    const file = await exportBackup(old)
+    await old.close()
+
+    const fresh = await renderApp()
+    await screen.findByRole('heading', { name: '¡Hola! Vamos a empezar', level: 1 })
+    expect(screen.getByText('¿Ya usabas la app en otra tableta? Restaura tu copia de seguridad.')).toBeInTheDocument()
+    await importBackup(fresh, file)
+
+    expect(await screen.findByRole('heading', { name: /Ana/, level: 1 })).toBeInTheDocument()
+    await openExam(fresh)
+    await openMaterial(fresh, 'Unidad 1')
+    expect(await recognizedText().findByText('Las fracciones tienen numerador.')).toBeInTheDocument()
+  })
+
   it('never puts the OpenRouter key in the file', async () => {
     const app = await renderApp(anasTablet)
     const file = await exportBackup(app)
 
     expect(new TextDecoder().decode(await file.arrayBuffer())).not.toContain('sk-or-v1-anas-key')
+  })
+})
+
+/**
+ * The backup with its header (the first line, JSON) changed, e.g. to a later
+ * format version. See src/backup/backup.ts for the layout.
+ */
+async function withHeader(file: File, change: (header: Record<string, unknown>) => void) {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const end = bytes.indexOf(0x0a)
+  const header = JSON.parse(new TextDecoder().decode(bytes.subarray(0, end))) as Record<string, unknown>
+  change(header)
+  return new File([JSON.stringify(header), bytes.slice(end)], file.name)
+}
+
+/** A tablet with an Exam, already on Settings, with a backup of another tablet in hand. */
+async function tabletWithABackupOfAnother() {
+  const old = await renderApp(anasTablet)
+  const backup = await exportBackup(old)
+  await old.close()
+  const app = await renderApp({
+    student: { name: 'Sofía', gradeLevel: 7 },
+    subjects: [{ name: 'Historia', language: 'es' }],
+    exams: [{ subject: 'Historia', period: q1 }],
+  })
+  await openSettings(app)
+  return { app, backup }
+}
+
+/** Back home: the tablet still has Sofía's Historia Exam and nothing of Ana's. */
+async function expectNothingReplaced(app: App) {
+  await goHome(app)
+  expect(await screen.findByRole('heading', { name: /Sofía/, level: 1 })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /Historia/ })).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: /Matemáticas/ })).not.toBeInTheDocument()
+}
+
+describe('importing', () => {
+  it('asks first, naming the day of the copy and that this tablet keeps its key, and "Cancelar" changes nothing', async () => {
+    setClock('2026-10-18T09:00')
+    const { app, backup } = await tabletWithABackupOfAnother()
+
+    await app.user.upload(screen.getByLabelText('Importar copia'), backup)
+    const confirmation = await screen.findByRole('alertdialog', { name: '¿Restaurar esta copia?' })
+    expect(confirmation).toHaveAccessibleDescription(
+      'La copia del 18 de octubre de 2026 reemplazará todo lo que hay en esta tableta: materias, exámenes, material, resúmenes, explicaciones, quizzes y ajustes. ' +
+        'La clave de OpenRouter de esta tableta se mantiene. Esto no se puede deshacer.',
+    )
+    await app.user.click(within(confirmation).getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    await expectNothingReplaced(app)
+  })
+
+  it('refuses a file that is not a backup, and changes nothing', async () => {
+    const { app } = await tabletWithABackupOfAnother()
+
+    await app.user.upload(screen.getByLabelText('Importar copia'), photo('unidad 1.jpg'))
+
+    expect(await backupSection().findByRole('alert')).toHaveTextContent(
+      'Este archivo no es una copia de seguridad de Mis Exámenes.',
+    )
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    await expectNothingReplaced(app)
+  })
+
+  it('refuses a backup that is missing part of the data', async () => {
+    const { app, backup } = await tabletWithABackupOfAnother()
+    const broken = await withHeader(backup, (header) => {
+      delete (header.tables as Record<string, unknown>).quizzes
+    })
+
+    await app.user.upload(screen.getByLabelText('Importar copia'), broken)
+
+    expect(await backupSection().findByRole('alert')).toHaveTextContent(
+      'Este archivo no es una copia de seguridad de Mis Exámenes.',
+    )
+    await expectNothingReplaced(app)
+  })
+
+  it('refuses a backup made by a newer version of the app', async () => {
+    const { app, backup } = await tabletWithABackupOfAnother()
+    const newer = await withHeader(backup, (header) => {
+      header.version = (header.version as number) + 1
+    })
+
+    await app.user.upload(screen.getByLabelText('Importar copia'), newer)
+
+    expect(await backupSection().findByRole('alert')).toHaveTextContent(
+      'Esta copia es de una versión más nueva de la app. Actualiza la app e inténtalo de nuevo.',
+    )
+    await expectNothingReplaced(app)
+  })
+
+  it('changes nothing when the backup’s data can’t be stored', async () => {
+    const { app, backup } = await tabletWithABackupOfAnother()
+    const broken = await withHeader(backup, (header) => {
+      const tables = header.tables as Record<string, Record<string, unknown>[]>
+      // Two Subjects with the same id.
+      tables.subjects = [...tables.subjects, { ...tables.subjects[0] }]
+    })
+
+    await importBackup(app, broken)
+
+    expect(await backupSection().findByRole('alert')).toHaveTextContent(
+      'Este archivo no es una copia de seguridad de Mis Exámenes.',
+    )
+    await expectNothingReplaced(app)
   })
 })
