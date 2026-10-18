@@ -29,7 +29,7 @@ async function scanPages() {
 /** The Page Viewer as the Material screen shows it, in a column `width` CSS pixels wide. */
 function Viewer({ original, alt, width = 400 }: { original: PageOriginal; alt: string; width?: number }) {
   return (
-    <figure className="page-original" style={{ width }}>
+    <figure className="page-original card" style={{ width, boxSizing: 'content-box' }}>
       <PageViewer original={original} alt={alt} />
     </figure>
   )

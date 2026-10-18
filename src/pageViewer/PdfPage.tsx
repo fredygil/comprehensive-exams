@@ -26,8 +26,9 @@ export function PdfPage({ bytes, alt }: { bytes: Uint8Array<ArrayBuffer>; alt: s
       const pdfPage = await pdf.getPage(1)
       const canvas = canvasRef.current
       if (cancelled || !canvas) return
-      // Fit the column's width; draw at device pixels so it is sharp on the tablet.
-      const columnWidth = canvas.parentElement?.clientWidth || 600
+      // Fit the column's width (the canvas is styled 100% wide); draw at
+      // device pixels so it is sharp on the tablet.
+      const columnWidth = canvas.clientWidth || 600
       const natural = pdfPage.getViewport({ scale: 1 })
       const viewport = pdfPage.getViewport({
         scale: (columnWidth / natural.width) * window.devicePixelRatio,
