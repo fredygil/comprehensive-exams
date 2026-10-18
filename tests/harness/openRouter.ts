@@ -214,6 +214,9 @@ export const openRouter = {
   /** Topic suggestions: structured JSON in the 'topics' schema. */
   topics: structured('topics'),
 
+  /** Summaries: structured JSON in the 'summary' schema ({ topics: [{ title, content }] }). */
+  summary: structured('summary'),
+
   /** Practice Quiz generation: structured JSON in the 'practice_quiz' schema. */
   practiceQuiz: {
     ...structured('practice_quiz'),

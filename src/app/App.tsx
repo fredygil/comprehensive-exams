@@ -11,6 +11,7 @@ import { PeriodScreen } from '../screens/PeriodScreen'
 import { QuizScreen } from '../screens/quiz/QuizScreen'
 import { SettingsScreen } from '../screens/settings/SettingsScreen'
 import { SubjectsScreen } from '../screens/subjects/SubjectsScreen'
+import { SummaryScreen } from '../screens/summary/SummaryScreen'
 import { Layout } from './Layout'
 import { requestPersistentStorage } from './persistentStorage'
 import { ServicesContext, useServices, type AppServices } from './services'
@@ -62,6 +63,7 @@ function Screens() {
         <Route path="examenes/:examId/material/:materialId" element={<MaterialScreen />} />
         <Route path="examenes/:examId/explicaciones/:explainerId" element={<ExplainerScreen />} />
         <Route path="examenes/:examId/quiz/:quizId" element={<QuizScreen />} />
+        <Route path="examenes/:examId/resumen" element={<SummaryScreen />} />
         <Route path="periodos/:periodId" element={<PeriodScreen />} />
         <Route path="ajustes" element={<SettingsScreen student={student} />} />
         <Route path="*" element={<Navigate to="/" replace />} />

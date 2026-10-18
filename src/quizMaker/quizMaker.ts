@@ -1,9 +1,12 @@
-// Quiz Maker: makes Practice Quizzes for an Exam.
+// Quiz Maker: makes Practice Quizzes (and Mistakes Quizzes) for an Exam.
 //
 // createPracticeQuiz sends the Exam's Recognized Text to the quiz model and
 // asks for Questions with their Feedback explanation, so taking and scoring
 // the quiz later needs no network. The app, not the model, decides where the
 // correct option goes. Each Question keeps its Material's name as it was.
+// The prompts of the Exam's earlier Questions go with the request so the
+// model asks new ones; a Question whose normalized prompt matches one of them
+// is a repeat, and its quiz is flagged mayRepeat.
 import { GatewayError } from '../gateway/errors'
 import type { ModelGateway, StructuredSchema } from '../gateway/gateway'
 import { practiceQuizPrompt } from '../prompts/practiceQuiz'
@@ -78,17 +81,24 @@ export type QuizMakerOptions = {
 export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
   return {
     /**
-     * Generates `count` (1–20) Questions from all of the Exam's read Pages
-     * and stores them as a new In Progress Practice Quiz. Returns its id.
+     * Generates `count` (1–20) Questions from the read Pages of the chosen
+     * Materials (`materialIds`; all of the Exam's by default) and stores them
+     * as a new In Progress Practice Quiz. Returns its id.
      * Gateway failures are thrown as GatewayError; a reply with no usable
      * Question is BadResponse. The model may write fewer than asked; extra
      * ones are dropped.
      */
-    async createPracticeQuiz(examId: number, { count }: { count: number }): Promise<number> {
+    async createPracticeQuiz(
+      examId: number,
+      { count, materialIds }: { count: number; materialIds?: number[] },
+    ): Promise<number> {
       const exam = await store.getExam(examId)
       const student = await store.getStudent()
       if (!exam || !student) throw new Error('createPracticeQuiz: no such Exam, or no Student')
-      const sources = await store.examRecognizedText(examId)
+      const sources = (await store.examRecognizedText(examId)).filter(
+        ({ material }) => !materialIds || materialIds.includes(material.id),
+      )
+      const earlierPrompts = await store.examQuestionPrompts(examId)
       const materials = new Map<string, Material>(
         sources.map(({ material }) => [String(material.id), material]),
       )
@@ -98,6 +108,7 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
         {
           count,
           materials: sources.map(({ material, pages }) => ({ id: String(material.id), pages })),
+          earlierPrompts: unique(earlierPrompts),
         },
       )
       const generated = await gateway.generateStructured(prompt, QUIZ_SCHEMA, 'practiceQuiz')
@@ -118,7 +129,25 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
           sourceMaterialName: material.name,
         }
       })
-      return store.addPracticeQuiz(examId, questions, { mayRepeat: false })
+      const asked = new Set(earlierPrompts.map(normalizedPrompt))
+      const mayRepeat = questions.some((question) => asked.has(normalizedPrompt(question.prompt)))
+      return store.addPracticeQuiz(examId, questions, { mayRepeat })
+    },
+
+    /**
+     * Makes an In Progress Mistakes Quiz of `count` (at most 20) of the
+     * Exam's current Mistakes, picked and ordered at random. It reuses the
+     * Question records as they are (options in the order first shown), with
+     * no model call, so it works offline. Returns its id.
+     */
+    async createMistakesQuiz(examId: number, count: number): Promise<number> {
+      const mistakes = await store.mistakesFor(examId)
+      const picked = shuffled(mistakes).slice(0, Math.min(count, MAX_QUESTIONS))
+      if (picked.length === 0) throw new Error('createMistakesQuiz: the Exam has no Mistakes')
+      return store.addMistakesQuiz(
+        examId,
+        picked.map((question) => question.id),
+      )
     },
   }
 }
@@ -150,6 +179,31 @@ function placeCorrectOption(
     option.trim(),
   )
   return { options, correctIndex: position }
+}
+
+/**
+ * A Question's prompt as compared to find repeats: letter case, accents,
+ * punctuation and spacing don't count ("¿Qué es una fracción?" matches
+ * "que es una fraccion").
+ */
+function normalizedPrompt(prompt: string): string {
+  return prompt
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+/** The prompts without repeats (the first of each is kept). */
+function unique(prompts: string[]): string[] {
+  const seen = new Set<string>()
+  return prompts.filter((prompt) => {
+    const key = normalizedPrompt(prompt)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 /** Fisher–Yates. */

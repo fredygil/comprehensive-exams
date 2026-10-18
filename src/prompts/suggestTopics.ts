@@ -1,7 +1,4 @@
-import { languageName, studentLine, type PromptContext } from './context'
-
-/** One Material's Recognized Text, Page by Page (read Pages only). */
-export type MaterialText = { name: string; pages: string[] }
+import { languageName, studentLine, type MaterialText, type PromptContext } from './context'
 
 /** Asks for topics in the Student's notes worth a deeper, web-sourced Explainer. */
 export function suggestTopicsPrompt(context: PromptContext, materials: MaterialText[]): string {

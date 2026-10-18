@@ -206,6 +206,9 @@ export type PracticeQuiz = {
   submittedAt: number | null
 }
 
+/** A Question's new Mistake status, decided when its quiz is submitted. */
+export type MistakeChange = { questionId: number; isMistake: boolean }
+
 /** A quiz with its Questions, in the quiz's order. */
 export type QuizWithQuestions = { quiz: PracticeQuiz; questions: Question[] }
 
@@ -213,12 +216,42 @@ export type QuizWithQuestions = { quiz: PracticeQuiz; questions: Question[] }
 export type MaterialText = { material: Material; pages: string[] }
 
 /**
+ * A study guide of the whole Exam, organized by topic; an Exam has at most
+ * one. It remembers what it was built from, so the Store can tell when it is
+ * Outdated (see examSummary).
+ */
+export type Summary = {
+  examId: number
+  /** Markdown with LaTeX math: one `##` heading per topic. */
+  markdown: string
+  /** The Exam's material revision when it was built. */
+  builtAtRevision: number
+  /** The Subject's Language when it was built. */
+  builtWithLanguage: Language
+  /** The Pages whose Recognized Text it was built from (the read ones). */
+  includedPageIds: number[]
+  /** When it was generated (ms since the epoch). */
+  createdAt: number
+}
+
+export type SummaryDraft = Omit<Summary, 'examId' | 'createdAt'>
+
+/** An Exam's Summary and how it stands against the Exam now. */
+export type SummaryState = {
+  summary: Summary
+  /** The Material or the Subject's Language changed since it was built. */
+  outdated: boolean
+  /** The Exam's Pages it doesn't include (unread, failed, or read later). */
+  notIncluded: number
+}
+
+/**
  * The kinds of data stored under an Exam, which go when the Exam (or its
  * Subject) is deleted. Later tickets add theirs here ('summary',
  * 'explainers', 'quizzes', ...), with a line in `examParts` below and its
  * text in `strings.deletion.examParts`.
  */
-export type ExamPartKind = 'materials' | 'quizzes' | 'explainers'
+export type ExamPartKind = 'materials' | 'summary' | 'quizzes' | 'explainers'
 
 /** How much of one kind of data an Exam holds, e.g. { kind: 'materials', count: 3 }. */
 export type ExamPartCount = { kind: ExamPartKind; count: number }
@@ -252,6 +285,8 @@ class Database extends Dexie {
   explainers!: EntityTable<Explainer, 'id'>
   questions!: EntityTable<Question, 'id'>
   quizzes!: EntityTable<PracticeQuiz, 'id'>
+  // Keyed by examId: at most one Summary per Exam.
+  summaries!: EntityTable<Summary, 'examId'>
 
   constructor(name: string) {
     super(name)
@@ -268,6 +303,7 @@ class Database extends Dexie {
       explainers: '++id, examId',
       questions: '++id, examId',
       quizzes: '++id, examId',
+      summaries: 'examId',
     })
   }
 }
@@ -301,6 +337,14 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
         await db.pageOriginals.bulkDelete(pageIds)
         await db.pages.bulkDelete(pageIds)
         await db.materials.bulkDelete(materialIds)
+      },
+    },
+    {
+      kind: 'summary',
+      tables: [db.summaries],
+      count: (examId) => db.summaries.where('examId').equals(examId).count(),
+      delete: async (examIds) => {
+        await db.summaries.bulkDelete(examIds)
       },
     },
     {
@@ -746,6 +790,12 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       return texts
     },
 
+    /** The prompts of every Question asked so far on the Exam, oldest first (new quizzes avoid them). */
+    async examQuestionPrompts(examId: number): Promise<string[]> {
+      const questions = await db.questions.where('examId').equals(examId).sortBy('id')
+      return questions.map((question) => question.prompt)
+    },
+
     // Practice Quizzes (the Quiz Maker and the Quiz Session).
 
     /** Stores new Questions and an In Progress quiz of them, in that order. Returns the quiz id. */
@@ -773,6 +823,23 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       })
     },
 
+    /**
+     * Stores an In Progress Mistakes Quiz of these existing Questions of the
+     * Exam, in this order. Returns the quiz id.
+     */
+    async addMistakesQuiz(examId: number, questionIds: number[]): Promise<number> {
+      return db.quizzes.add({
+        examId,
+        kind: 'mistakes',
+        state: 'inProgress',
+        items: questionIds.map((questionId) => ({ questionId, chosenIndex: null })),
+        score: null,
+        mayRepeat: false,
+        createdAt: Date.now(),
+        submittedAt: null,
+      })
+    },
+
     getQuiz,
 
     /** Records (or changes) the answer to the quiz's Question at `position`, while it is In Progress. */
@@ -788,9 +855,14 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     /**
      * Makes an In Progress quiz Submitted with the Score `score` gives its
      * final answers (read in the same transaction, so an answer saved just
-     * before counts).
+     * before counts), and gives its Questions the Mistake status `mistakes`
+     * decides from the same answers.
      */
-    async submitQuiz(quizId: number, score: (quiz: QuizWithQuestions) => number) {
+    async submitQuiz(
+      quizId: number,
+      score: (quiz: QuizWithQuestions) => number,
+      mistakes: (quiz: QuizWithQuestions) => MistakeChange[] = () => [],
+    ) {
       await db.transaction('rw', [db.quizzes, db.questions], async () => {
         const found = await getQuiz(quizId)
         if (!found || found.quiz.state !== 'inProgress') return
@@ -799,7 +871,44 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
           score: score(found),
           submittedAt: Date.now(),
         })
+        for (const { questionId, isMistake } of mistakes(found)) {
+          await db.questions.update(questionId, { isMistake })
+        }
       })
+    },
+
+    /** The Exam's current Mistakes, oldest Question first. */
+    async mistakesFor(examId: number): Promise<Question[]> {
+      return db.questions
+        .where('examId')
+        .equals(examId)
+        .filter((question) => question.isMistake)
+        .sortBy('id')
+    },
+
+    // The Summary. It is Outdated when the Exam's material revision or its
+    // Subject's Language is no longer what it was built with.
+
+    /** Stores the Exam's Summary, replacing the one it had. */
+    async saveSummary(examId: number, draft: SummaryDraft) {
+      await db.summaries.put({ ...draft, examId, createdAt: Date.now() })
+    },
+
+    /** The Exam's Summary and whether it is Outdated; null if it has none. */
+    async examSummary(examId: number): Promise<SummaryState | null> {
+      const summary = await db.summaries.get(examId)
+      const exam = summary && (await getExam(examId))
+      if (!summary || !exam) return null
+      const materialIds = await db.materials.where('examId').equals(examId).primaryKeys()
+      const pageIds = await db.pages.where('materialId').anyOf(materialIds).primaryKeys()
+      const included = new Set(summary.includedPageIds)
+      return {
+        summary,
+        outdated:
+          summary.builtAtRevision !== exam.materialRevision ||
+          summary.builtWithLanguage !== exam.subject.language,
+        notIncluded: pageIds.filter((id) => !included.has(id)).length,
+      }
     },
 
     async close() {
