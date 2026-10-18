@@ -211,6 +211,8 @@ export const strings = {
     /** The Material picker: which Materials the quiz covers (all by default). */
     materials: 'Material del quiz',
     needsMaterial: 'Elige al menos un material.',
+    /** The Material has run out of new Questions, so the quiz repeats some earlier ones. */
+    mayRepeat: 'Algunas preguntas pueden repetirse: tu material ya no tiene suficientes preguntas nuevas.',
     title: 'Quiz de práctica',
     /** "Pregunta 3 de 10" */
     questionOf: (n: number, total: number) => `Pregunta ${n} de ${total}`,

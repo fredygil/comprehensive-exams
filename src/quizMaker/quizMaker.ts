@@ -4,6 +4,9 @@
 // asks for Questions with their Feedback explanation, so taking and scoring
 // the quiz later needs no network. The app, not the model, decides where the
 // correct option goes. Each Question keeps its Material's name as it was.
+// The prompts of the Exam's earlier Questions go with the request so the
+// model asks new ones; a Question whose normalized prompt matches one of them
+// is a repeat, and its quiz is flagged mayRepeat.
 import { GatewayError } from '../gateway/errors'
 import type { ModelGateway, StructuredSchema } from '../gateway/gateway'
 import { practiceQuizPrompt } from '../prompts/practiceQuiz'
@@ -125,7 +128,9 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
           sourceMaterialName: material.name,
         }
       })
-      return store.addPracticeQuiz(examId, questions, { mayRepeat: false })
+      const asked = new Set(earlierPrompts.map(normalizedPrompt))
+      const mayRepeat = questions.some((question) => asked.has(normalizedPrompt(question.prompt)))
+      return store.addPracticeQuiz(examId, questions, { mayRepeat })
     },
   }
 }

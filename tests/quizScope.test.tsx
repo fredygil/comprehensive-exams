@@ -124,4 +124,32 @@ describe('avoiding Questions already asked', () => {
     expect(second).toContain('¿Qué es una fracción?')
     expect(second).toContain('¿Qué es un decimal?')
   })
+
+  const mayRepeat = 'Algunas preguntas pueden repetirse: tu material ya no tiene suficientes preguntas nuevas.'
+
+  /** Takes a first quiz asking "¿Qué es una fracción?", then starts a second one whose Questions are `next`. */
+  async function secondQuiz(next: ScriptedQuestion[]) {
+    server.use(openRouter.practiceQuiz.questions([question('¿Qué es una fracción?')]))
+    const app = await renderApp(twoUnits)
+    await openExam(app)
+    await startQuiz(app, 1)
+    expect(screen.queryByText(mayRepeat)).not.toBeInTheDocument()
+    await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+
+    server.use(openRouter.practiceQuiz.questions(next))
+    await startQuiz(app, next.length)
+    return app
+  }
+
+  it('says some Questions may repeat when one matches an earlier prompt, ignoring case, accents and punctuation', async () => {
+    await secondQuiz([question('¿Cuánto es 1/2 + 1/4?'), question('  que es una FRACCION ')])
+
+    expect(screen.getByText(mayRepeat)).toBeInTheDocument()
+  })
+
+  it('says nothing when every Question is new', async () => {
+    await secondQuiz([question('¿Cuánto es 1/2 + 1/4?'), question('¿Qué es una fracción propia?')])
+
+    expect(screen.queryByText(mayRepeat)).not.toBeInTheDocument()
+  })
 })
