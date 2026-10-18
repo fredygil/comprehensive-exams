@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router'
 import { useServices } from '../../app/services'
 import { Section } from '../../components/Section'
 import { MAX_QUESTIONS } from '../../quizMaker/quizMaker'
@@ -14,7 +15,8 @@ const DEFAULT_COUNT = 10
  * no network, since its Questions already exist.
  */
 export function MistakesQuizSection({ exam }: { exam: Exam }) {
-  const { store } = useServices()
+  const { store, quizMaker } = useServices()
+  const navigate = useNavigate()
   const mistakes = useLiveQuery(() => store.mistakesFor(exam.id), [store, exam.id])
   const [chosen, setChosen] = useState<number | null>(null)
   const text = strings.quiz.mistakes
@@ -23,8 +25,10 @@ export function MistakesQuizSection({ exam }: { exam: Exam }) {
   const max = Math.min(MAX_QUESTIONS, mistakes.length)
   const count = Math.min(chosen ?? DEFAULT_COUNT, max)
 
-  function start(event: FormEvent) {
+  async function start(event: FormEvent) {
     event.preventDefault()
+    const quizId = await quizMaker.createMistakesQuiz(exam.id, count)
+    navigate(`/examenes/${exam.id}/quiz/${quizId}`)
   }
 
   return (

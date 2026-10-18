@@ -26,7 +26,7 @@ export function QuizScreen() {
     <main className="screen">
       <header>
         <Link to={`/examenes/${exam.id}`}>{strings.material.backToExam(exam.subject.name)}</Link>
-        <h1>{strings.quiz.title}</h1>
+        <h1>{strings.quiz.kinds[quiz.kind]}</h1>
       </header>
       {quiz.state === 'inProgress' ? (
         <QuizQuestions quiz={quiz} questions={questions} />

@@ -776,6 +776,23 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       })
     },
 
+    /**
+     * Stores an In Progress Mistakes Quiz of these existing Questions of the
+     * Exam, in this order. Returns the quiz id.
+     */
+    async addMistakesQuiz(examId: number, questionIds: number[]): Promise<number> {
+      return db.quizzes.add({
+        examId,
+        kind: 'mistakes',
+        state: 'inProgress',
+        items: questionIds.map((questionId) => ({ questionId, chosenIndex: null })),
+        score: null,
+        mayRepeat: false,
+        createdAt: Date.now(),
+        submittedAt: null,
+      })
+    },
+
     getQuiz,
 
     /** Records (or changes) the answer to the quiz's Question at `position`, while it is In Progress. */

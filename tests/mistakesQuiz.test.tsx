@@ -1,6 +1,7 @@
 import { screen, within } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import { openRouter, server, type ScriptedQuestion } from './harness/openRouter'
+import { OPENROUTER, openRouter, openRouterRequests, server, type ScriptedQuestion } from './harness/openRouter'
 import { renderApp } from './harness/renderApp'
 
 const q1 = { schoolYearStart: 2026, quarter: 1 as const }
@@ -108,5 +109,60 @@ describe('the Mistakes Quiz option', () => {
     const count = mistakes.getByLabelText('Número de preguntas')
     expect(within(count).getAllByRole('option')).toHaveLength(20)
     expect(count).toHaveValue('10')
+  })
+})
+
+/** From the Exam screen: start a Mistakes Quiz of `count`; waits for its first Question. */
+async function startMistakesQuiz(app: App, count: number) {
+  const mistakes = within(await screen.findByRole('region', { name: 'Quiz de errores' }))
+  await app.user.selectOptions(mistakes.getByLabelText('Número de preguntas'), String(count))
+  await app.user.click(mistakes.getByRole('button', { name: 'Repasar errores' }))
+  await screen.findByRole('heading', { name: `Pregunta 1 de ${count}` })
+}
+
+/** The number of the Question on screen ("Pregunta número 3" → 3). */
+function shownQuestion() {
+  return Number(/Pregunta número (\d+)/.exec(screen.getByRole('region', { name: /^Pregunta \d+ de/ }).textContent!)![1])
+}
+
+describe('taking a Mistakes Quiz', () => {
+  it('reuses her Mistakes, with no network, and is labelled as a Mistakes Quiz', async () => {
+    const app = await tablet()
+    await openExam(app)
+    await practice(app, [true, false, true, false, false])
+
+    // Once its Questions exist, a Mistakes Quiz needs nothing from the network.
+    server.use(http.all(`${OPENROUTER}/*`, () => HttpResponse.error()))
+    const sent = openRouterRequests.length
+    await startMistakesQuiz(app, 3)
+
+    expect(screen.getByRole('heading', { name: 'Quiz de errores', level: 1 })).toBeInTheDocument()
+    const asked: number[] = []
+    for (let i = 1; i <= 3; i++) {
+      await screen.findByRole('heading', { name: `Pregunta ${i} de 3` })
+      asked.push(shownQuestion())
+      if (i < 3) await app.user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    }
+    expect([...asked].sort()).toEqual([2, 4, 5])
+    await app.user.click(screen.getByRole('radio', { name: `Correcta ${asked[2]}` }))
+    await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+
+    expect(await screen.findByRole('heading', { name: 'Resultado' })).toBeInTheDocument()
+    expect(screen.getByText('1 / 3')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Quiz de errores', level: 1 })).toBeInTheDocument()
+    expect(openRouterRequests.length).toBe(sent)
+  })
+
+  it('takes as many Mistakes as she chose', async () => {
+    const app = await tablet()
+    await openExam(app)
+    await practice(app, [false, false, false, false])
+
+    await startMistakesQuiz(app, 2)
+
+    expect(screen.getByRole('button', { name: 'Siguiente' })).toBeEnabled()
+    await app.user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    await screen.findByRole('heading', { name: 'Pregunta 2 de 2' })
+    expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
   })
 })
