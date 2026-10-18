@@ -16,7 +16,8 @@ export default defineConfig({
       injectRegister: 'auto',
       // Precache the whole app shell so it opens offline.
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
+        // mjs and woff2 too: KaTeX's fonts, so formulas render offline.
+        globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,webmanifest,woff2}'],
         cleanupOutdatedCaches: true,
       },
       manifest: {
