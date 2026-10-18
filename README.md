@@ -35,7 +35,16 @@ src/
     downloadFile.ts      the real saveFile: hands a file to the browser as a download
     config.ts            base path, public URL, attribution title
     persistentStorage.ts navigator.storage.persist() on launch
-  store/store.ts         Store: the only module that touches IndexedDB (Dexie)
+  store/                 Store: the only module that touches IndexedDB (Dexie); one interface, `createStore()` in store.ts
+    store.ts             createStore: composes the areas below over one database; re-exports types.ts (import from here)
+    types.ts             the domain types (Exam, Material, Page, PracticeQuiz, ...) and shared pure rules (isRead, readingProgress, examTextOf)
+    db.ts                the Dexie schema and row types, StoreContext, ExamPart, canStoreUnder (only src/store/ imports it)
+    settings.ts          the Student and Settings
+    exams.ts             Subjects, Periods, Exams; deleting an Exam or Subject with its ExamParts
+    material.ts          Material and Pages, Page reading, examText
+    studyAids.ts         the Summary and Explainers
+    quizzes.ts           Practice and Mistakes Quizzes
+    snapshot.ts          exportAll / replaceAll (backup)
   gateway/               Model Gateway: the only module that talks to OpenRouter
     gateway.ts           operations (checkKey, readPage, generateStructured, generateWithWebSearch) + shared `send` and `complete`
     errors.ts            GatewayError kinds: NoKey, InvalidKey, NoCredit, Offline, RateLimited, Unavailable, BadResponse
@@ -107,7 +116,7 @@ New modules from spec #1 (Page Splitter, Reading Queue, Quiz Maker, ...) get the
 
 ### Data under an Exam
 
-Deleting an Exam, or a Subject with its Exams, removes everything stored under it after a confirmation that names it. When a ticket adds data under an Exam (Material, Summary, Explainers, quizzes), it adds a kind to `ExamPartKind` and an entry to `examParts` in `src/store/store.ts` (tables, count, delete), plus its line in `strings.deletion.examParts`. Both confirmations and both cascades pick it up from there.
+Deleting an Exam, or a Subject with its Exams, removes everything stored under it after a confirmation that names it. When a ticket adds data under an Exam (Material, Summary, Explainers, quizzes), it adds a kind to `ExamPartKind` (`src/store/types.ts`), an `ExamPart` (tables, count, delete; see `src/store/db.ts`) in the Store file that keeps that data, listed in the `examsStore(...)` call in `createStore` (`src/store/store.ts`), plus its line in `strings.deletion.examParts`. Both confirmations and both cascades pick it up from there.
 
 ## Live check
 
