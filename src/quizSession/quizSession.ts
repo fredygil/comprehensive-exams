@@ -2,9 +2,10 @@
 //
 // Answers are saved in the Store as soon as they change, so a quiz survives
 // the app closing. Submitting scores the quiz from the answers and the
-// Questions already stored: no network is needed. Feedback is worked out
-// from the same records whenever a Submitted quiz is shown.
-import type { Question, QuizWithQuestions, Store } from '../store/store'
+// Questions already stored: no network is needed. It also sets or clears
+// each Question's Mistake status. Feedback is worked out from the same
+// records whenever a Submitted quiz is shown.
+import type { MistakeChange, Question, QuizWithQuestions, Store } from '../store/store'
 
 /** What a Student sees for one Question she got wrong. */
 export type Feedback = {
@@ -19,6 +20,19 @@ export type Feedback = {
 /** Questions answered correctly; unanswered ones count as wrong. */
 export function scoreOf({ quiz, questions }: QuizWithQuestions): number {
   return quiz.items.filter((item, i) => item.chosenIndex === questions[i].correctIndex).length
+}
+
+/**
+ * How submitting changes each Question's Mistake status: a wrong (or
+ * unanswered) one becomes a Mistake in any quiz; a right one stops being
+ * one only in a Mistakes Quiz.
+ */
+export function mistakesOf({ quiz, questions }: QuizWithQuestions): MistakeChange[] {
+  return quiz.items.flatMap((item, i) => {
+    const right = item.chosenIndex === questions[i].correctIndex
+    if (right && quiz.kind !== 'mistakes') return []
+    return [{ questionId: item.questionId, isMistake: !right }]
+  })
 }
 
 /** Feedback for every Question answered wrong (or left unanswered), in quiz order. */
@@ -44,9 +58,9 @@ export function createQuizSession({ store }: { store: Store }) {
       await store.answerQuizQuestion(quizId, position, chosenIndex)
     },
 
-    /** Scores the quiz and makes it Submitted. Works offline. */
+    /** Scores the quiz, makes it Submitted and updates its Questions' Mistake status. Works offline. */
     async submit(quizId: number) {
-      await store.submitQuiz(quizId, scoreOf)
+      await store.submitQuiz(quizId, scoreOf, mistakesOf)
     },
   }
 }

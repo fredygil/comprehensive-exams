@@ -1,4 +1,4 @@
-// Quiz Maker: makes Practice Quizzes for an Exam.
+// Quiz Maker: makes Practice Quizzes (and Mistakes Quizzes) for an Exam.
 //
 // createPracticeQuiz sends the Exam's Recognized Text to the quiz model and
 // asks for Questions with their Feedback explanation, so taking and scoring
@@ -118,6 +118,22 @@ export function createQuizMaker({ store, gateway }: QuizMakerOptions) {
         }
       })
       return store.addPracticeQuiz(examId, questions, { mayRepeat: false })
+    },
+
+    /**
+     * Makes an In Progress Mistakes Quiz of `count` (at most 20) of the
+     * Exam's current Mistakes, picked and ordered at random. It reuses the
+     * Question records as they are (options in the order first shown), with
+     * no model call, so it works offline. Returns its id.
+     */
+    async createMistakesQuiz(examId: number, count: number): Promise<number> {
+      const mistakes = await store.mistakesFor(examId)
+      const picked = shuffled(mistakes).slice(0, Math.min(count, MAX_QUESTIONS))
+      if (picked.length === 0) throw new Error('createMistakesQuiz: the Exam has no Mistakes')
+      return store.addMistakesQuiz(
+        examId,
+        picked.map((question) => question.id),
+      )
     },
   }
 }

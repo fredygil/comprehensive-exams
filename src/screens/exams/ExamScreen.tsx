@@ -6,6 +6,7 @@ import { DeleteWithConfirmation } from '../../components/DeleteWithConfirmation'
 import { strings } from '../../strings'
 import { ExplainersSection } from '../explainers/ExplainersSection'
 import { MaterialSection } from '../material/MaterialSection'
+import { MistakesQuizSection } from '../quiz/MistakesQuizSection'
 import { QuizSection } from '../quiz/QuizSection'
 import { SummarySection } from '../summary/SummarySection'
 import { ExamDateSection } from './ExamDateSection'
@@ -32,6 +33,7 @@ export function ExamScreen() {
       <SummarySection exam={exam} />
       <ExplainersSection exam={exam} />
       <QuizSection exam={exam} />
+      <MistakesQuizSection exam={exam} />
       <div>
         <DeleteWithConfirmation
           action={strings.deletion.exam.action}

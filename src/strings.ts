@@ -3,7 +3,7 @@
 // Vocabulary follows GLOSSARY.md.
 import type { GatewayErrorKind } from './gateway/errors.ts'
 import type { Job } from './settings/models.ts'
-import type { ExamPartKind, Language, PeriodDraft, Quarter } from './store/store.ts'
+import type { ExamPartKind, Language, PeriodDraft, Quarter, QuizKind } from './store/store.ts'
 
 function formatUsd(usd: number) {
   return `$${usd.toFixed(2)}`
@@ -234,6 +234,18 @@ export const strings = {
       unanswered: 'Sin responder',
       correct: 'Respuesta correcta:',
       material: 'Material:',
+    },
+    /** What each kind of quiz is called, wherever a quiz is shown or listed. */
+    kinds: {
+      practice: 'Quiz de práctica',
+      mistakes: 'Quiz de errores',
+    } satisfies Record<QuizKind, string>,
+    mistakes: {
+      section: 'Quiz de errores',
+      /** "Tienes 3 preguntas por repasar." */
+      count: (n: number) => (n === 1 ? 'Tienes 1 pregunta por repasar.' : `Tienes ${n} preguntas por repasar.`),
+      howMany: 'Número de preguntas',
+      start: 'Repasar errores',
     },
   },
 
