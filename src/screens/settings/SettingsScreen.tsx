@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useServices } from '../../app/services'
 import type { Student } from '../../store/store'
 import { strings } from '../../strings'
+import { BackupSection } from './BackupSection'
 import { KeySection } from './KeySection'
 import { ModelsSection } from './ModelsSection'
 import { StudentSection } from './StudentSection'
@@ -20,7 +21,10 @@ export function SettingsScreen({ student }: { student: Student }) {
           <StudentSection student={student} />
           <KeySection savedKey={settings.openRouterKey} />
         </div>
-        <ModelsSection savedModels={settings.models} />
+        <div className="stack">
+          <ModelsSection savedModels={settings.models} />
+          <BackupSection />
+        </div>
       </div>
     </main>
   )

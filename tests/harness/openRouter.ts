@@ -204,6 +204,17 @@ export const openRouter = {
     },
     status: (status: number, metadata?: Record<string, unknown>) =>
       chatHandler(isReadPage, () => failure(status, `HTTP ${status}`, metadata)),
+    /**
+     * Every reading request is held until the test calls `answer(markdown)`,
+     * then reads as that Markdown, e.g. to do something while a Page is out.
+     * `server.use(held.handler)`.
+     */
+    held: () => {
+      let answer!: (markdown: string) => void
+      const answered = new Promise<string>((resolve) => (answer = resolve))
+      const handler = chatHandler(isReadPage, async () => HttpResponse.json(chatCompletion(await answered)))
+      return { handler, answer }
+    },
     /** A 200 cut off by the token budget: finish_reason "length" and no text. */
     cutOff: () =>
       chatHandler(isReadPage, () => HttpResponse.json(chatCompletion('', { finish_reason: 'length' }))),
