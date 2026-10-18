@@ -158,6 +158,14 @@ export const strings = {
     },
   },
 
+  explainers: {
+    title: 'Explicaciones',
+    help: 'Una explicación más profunda de un tema, escrita con fuentes de internet.',
+    suggest: 'Sugerir temas',
+    suggesting: 'Buscando temas…',
+    suggested: 'Temas sugeridos',
+  },
+
   /** Delete confirmations: they name everything that will be lost. */
   deletion: {
     willLose: 'Se borrará para siempre:',

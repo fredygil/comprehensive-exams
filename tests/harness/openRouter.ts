@@ -31,7 +31,10 @@ function failure(status: number, message: string, metadata?: Record<string, unkn
 }
 
 /** A chat completion as OpenRouter returns it. */
-export function chatCompletion(content: string, choice: { finish_reason?: string } = {}) {
+export function chatCompletion(
+  content: string,
+  choice: { finish_reason?: string; annotations?: unknown[] } = {},
+) {
   return {
     id: 'gen-test-1',
     object: 'chat.completion',
@@ -41,14 +44,23 @@ export function chatCompletion(content: string, choice: { finish_reason?: string
       {
         index: 0,
         finish_reason: choice.finish_reason ?? 'stop',
-        message: { role: 'assistant', content, refusal: null },
+        message: {
+          role: 'assistant',
+          content,
+          refusal: null,
+          ...(choice.annotations && { annotations: choice.annotations }),
+        },
       },
     ],
     usage: { prompt_tokens: 1200, completion_tokens: 300, total_tokens: 1500 },
   }
 }
 
-type ChatBody = { messages?: { content?: unknown }[] }
+type ChatBody = {
+  messages?: { content?: unknown }[]
+  response_format?: { type?: string; json_schema?: { name?: string } }
+  tools?: { type?: string }[]
+}
 
 /** Is this chat completion a Page being read (it carries the Page's image or file)? */
 function isReadPage(body: ChatBody) {
@@ -57,6 +69,21 @@ function isReadPage(body: ChatBody) {
       Array.isArray(message.content) &&
       message.content.some((part: { type?: string }) => part.type === 'image_url' || part.type === 'file'),
   )
+}
+
+/** Is this chat completion asking for structured JSON (a json_schema response format)? */
+function isStructured(body: ChatBody) {
+  return body.response_format?.type === 'json_schema'
+}
+
+/** Is this chat completion an answer researched with the web search server tool? */
+function isWebSearch(body: ChatBody) {
+  return (body.tools ?? []).some((tool) => tool.type === 'openrouter:web_search')
+}
+
+/** A web source as OpenRouter cites it in message.annotations. */
+export function urlCitation(url: string, title: string) {
+  return { type: 'url_citation', url_citation: { url, title, content: '…', start_index: 0, end_index: 10 } }
 }
 
 /**
@@ -95,6 +122,37 @@ export const openRouter = {
       chatHandler(isReadPage, () => HttpResponse.json(chatCompletion('', { finish_reason: 'length' }))),
     /** The network is down (fetch rejects). */
     offline: () => chatHandler(isReadPage, () => HttpResponse.error()),
+  },
+
+  /** Structured JSON: chat completions with a json_schema response format. */
+  structured: {
+    /** Answers with this value, as the JSON string models put in `content`. */
+    json: (value: unknown) =>
+      chatHandler(isStructured, () => HttpResponse.json(chatCompletion(JSON.stringify(value)))),
+    /** Answers with this exact content, e.g. text that is not valid JSON. */
+    raw: (content: string) =>
+      chatHandler(isStructured, () => HttpResponse.json(chatCompletion(content))),
+    status: (status: number, metadata?: Record<string, unknown>) =>
+      chatHandler(isStructured, () => failure(status, `HTTP ${status}`, metadata)),
+    offline: () => chatHandler(isStructured, () => HttpResponse.error()),
+  },
+
+  /** Answers researched on the web: chat completions with the openrouter:web_search tool. */
+  webSearch: {
+    /** Answers with this Markdown and these message.annotations (e.g. `urlCitation(url, title)`). */
+    answer: (markdown: string, annotations: unknown[] = []) =>
+      chatHandler(isWebSearch, () => HttpResponse.json(chatCompletion(markdown, { annotations }))),
+    /** Each request in turn gets the next answer in the list (the last one repeats). */
+    answers: (answers: { markdown: string; annotations?: unknown[] }[]) => {
+      let next = 0
+      return chatHandler(isWebSearch, () => {
+        const { markdown, annotations = [] } = answers[Math.min(next++, answers.length - 1)]
+        return HttpResponse.json(chatCompletion(markdown, { annotations }))
+      })
+    },
+    status: (status: number, metadata?: Record<string, unknown>) =>
+      chatHandler(isWebSearch, () => failure(status, `HTTP ${status}`, metadata)),
+    offline: () => chatHandler(isWebSearch, () => HttpResponse.error()),
   },
 
   key: {
