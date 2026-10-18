@@ -89,6 +89,12 @@ export function createReadingQueue({ store, gateway }: ReadingQueueOptions) {
   return {
     start,
 
+    /** Reads a failed Page again ("Reintentar"), in line with the others. */
+    async retry(pageId: number) {
+      await store.markPageUnread(pageId)
+      start()
+    },
+
     /** Stops after the Page being read (the app is closing). */
     stop() {
       stopped = true

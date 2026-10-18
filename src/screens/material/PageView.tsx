@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { useServices } from '../../app/services'
 import { NeedsKeyNotice, useHasKey } from '../../components/NeedsKey'
 import { RichText } from '../../components/RichText'
 import { PageViewer } from '../../pageViewer/PageViewer'
@@ -24,6 +25,7 @@ export function PageView({ page }: { page: Page }) {
 }
 
 function PageText({ page }: { page: Page }) {
+  const { readingQueue } = useServices()
   const hasKey = useHasKey()
   const text = strings.material.page
   switch (page.status) {
@@ -33,9 +35,12 @@ function PageText({ page }: { page: Page }) {
       return hasKey === false ? <NeedsKeyNotice /> : <p className="hint">{text.reading}</p>
     case 'failed':
       return (
-        <p role="alert" className="error">
-          {strings.errors[page.failure ?? 'BadResponse']}
-        </p>
+        <div role="alert" className="stack">
+          <p className="error">{strings.errors[page.failure ?? 'BadResponse']}</p>
+          <button type="button" onClick={() => void readingQueue.retry(page.id)}>
+            {text.retry}
+          </button>
+        </div>
       )
     case 'read':
       return <RichText>{page.recognizedText ?? ''}</RichText>

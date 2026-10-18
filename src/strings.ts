@@ -159,6 +159,7 @@ export const strings = {
       original: (number: number) => `Página ${number}: original`,
       recognizedText: 'Texto reconocido',
       reading: 'Leyendo la página…',
+      retry: 'Reintentar',
     },
   },
 
