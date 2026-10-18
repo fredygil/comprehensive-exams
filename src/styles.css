@@ -227,3 +227,111 @@ button.danger-outline {
     align-items: start;
   }
 }
+
+/* A screen that uses the tablet's full width (e.g. a Page beside its text). */
+.screen.wide {
+  max-width: 1400px;
+}
+
+.material-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.material-list a {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+/* "Agregar material": a button-looking label around a visually hidden file input. */
+.file-picker {
+  display: inline-flex;
+  width: fit-content;
+}
+
+.file-picker .button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  background: var(--brand);
+  color: white;
+  cursor: pointer;
+}
+
+.file-picker:focus-within .button {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.file-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+/* A Page's original and its Recognized Text: stacked in portrait... */
+.page-view {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.page-original {
+  margin: 0;
+}
+
+.page-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.page-text {
+  min-width: 0;
+}
+
+.rich-text {
+  overflow-wrap: anywhere;
+}
+
+.rich-text .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.rich-text table {
+  border-collapse: collapse;
+}
+
+.rich-text th,
+.rich-text td {
+  border: 1px solid #c8d1da;
+  padding: 0.25rem 0.5rem;
+}
+
+/* ...and side by side in landscape. */
+@media (orientation: landscape) {
+  .page-view {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  .page-original {
+    position: sticky;
+    top: 1rem;
+  }
+}

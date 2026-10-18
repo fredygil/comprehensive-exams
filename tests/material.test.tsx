@@ -186,12 +186,16 @@ describe('after reading', () => {
 
 describe('deleting an Exam with Material', () => {
   it('names the Material in the confirmation and deletes it with the Exam', async () => {
-    server.use(openRouter.readPage.text('Texto.'))
-    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [mathExam] })
+    const app = await renderApp({
+      student: ana,
+      subjects,
+      exams: [{ ...mathExam, materials: [{ name: 'a', pages: ['Texto a.'] }, { name: 'b', pages: ['Texto b.'] }] }],
+    })
     await openExam(app)
-    await app.user.upload(screen.getByLabelText('Agregar material'), [photo('a.jpg'), photo('b.jpg')])
-    const material = within(screen.getByRole('region', { name: 'Material' }))
-    await material.findByRole('link', { name: 'b' })
+    await openMaterial(app, 'b')
+    expect(await screen.findByText('Texto b.')).toBeInTheDocument()
+    await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+    await screen.findByRole('heading', { name: 'Matemáticas', level: 1 })
 
     await app.user.click(screen.getByRole('button', { name: 'Eliminar examen' }))
     const confirm = within(await screen.findByRole('alertdialog', { name: '¿Eliminar este examen?' }))
@@ -212,6 +216,31 @@ describe('deleting an Exam with Material', () => {
         'Aún no hay material para este examen.',
       ),
     ).toBeInTheDocument()
+  })
+})
+
+describe('adding Material with no key saved', () => {
+  it('keeps its Pages waiting, says why, and reads them once a key is saved', async () => {
+    server.use(openRouter.readPage.text('Texto leído después.'))
+    const app = await renderApp({ student: ana, subjects, exams: [mathExam] })
+    await openExam(app)
+
+    await app.user.upload(screen.getByLabelText('Agregar material'), photo('fracciones.jpg'))
+    await openMaterial(app, 'fracciones')
+
+    const text = within(screen.getByRole('region', { name: 'Texto reconocido' }))
+    expect(await text.findByRole('link', { name: 'Configurar la clave' })).toBeInTheDocument()
+    expect(openRouterRequests).toHaveLength(0)
+
+    await app.user.click(text.getByRole('link', { name: 'Configurar la clave' }))
+    await app.user.type(await screen.findByLabelText('Clave'), 'sk-or-v1-good')
+    await app.user.click(screen.getByRole('button', { name: 'Guardar clave' }))
+    await screen.findByText('Clave guardada.')
+
+    await app.reopen()
+    await openExam(app)
+    await openMaterial(app, 'fracciones')
+    expect(await screen.findByText('Texto leído después.')).toBeInTheDocument()
   })
 })
 

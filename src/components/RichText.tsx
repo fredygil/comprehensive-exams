@@ -26,7 +26,7 @@ export function RichText({ children }: { children: string }) {
  * models still write `\(...\)` and `\[...\]` now and then: turn them into the
  * `$` forms (display math fenced on its own lines, as remark-math needs).
  */
-export function normalizeMath(markdown: string): string {
+function normalizeMath(markdown: string): string {
   return markdown
     .replace(/\\\[([\s\S]+?)\\\]/g, (_, math: string) => `\n$$\n${math.trim()}\n$$\n`)
     .replace(/\\\(([\s\S]+?)\\\)/g, (_, math: string) => `$${math.trim()}$`)

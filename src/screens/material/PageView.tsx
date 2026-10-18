@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { NeedsKeyNotice, useHasKey } from '../../components/NeedsKey'
 import { RichText } from '../../components/RichText'
 import { PageViewer } from '../../pageViewer/PageViewer'
 import type { Page } from '../../store/store'
@@ -23,11 +24,13 @@ export function PageView({ page }: { page: Page }) {
 }
 
 function PageText({ page }: { page: Page }) {
+  const hasKey = useHasKey()
   const text = strings.material.page
   switch (page.status) {
     case 'unread':
     case 'reading':
-      return <p className="hint">{text.reading}</p>
+      // Without a key the Page waits in line until one is saved.
+      return hasKey === false ? <NeedsKeyNotice /> : <p className="hint">{text.reading}</p>
     case 'failed':
       return (
         <p role="alert" className="error">
