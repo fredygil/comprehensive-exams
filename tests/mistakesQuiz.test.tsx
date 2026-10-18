@@ -71,6 +71,12 @@ describe('Mistakes', () => {
 
     const mistakes = await screen.findByRole('region', { name: 'Quiz de errores' })
     expect(mistakes).toHaveTextContent('Tienes 2 preguntas por repasar.')
+
+    await app.reopen()
+    await openExam(app)
+    expect(await screen.findByRole('region', { name: 'Quiz de errores' })).toHaveTextContent(
+      'Tienes 2 preguntas por repasar.',
+    )
   })
 })
 
@@ -151,6 +157,40 @@ describe('taking a Mistakes Quiz', () => {
     expect(screen.getByText('1 / 3')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Quiz de errores', level: 1 })).toBeInTheDocument()
     expect(openRouterRequests.length).toBe(sent)
+  })
+
+  it('clears a Mistake she answers right and keeps one she gets wrong again', async () => {
+    const app = await tablet()
+    await openExam(app)
+    await practice(app, [false, true, false])
+
+    await startMistakesQuiz(app, 2)
+    const first = shownQuestion()
+    const second = first === 1 ? 3 : 1
+    await takeQuiz(app, [first, second], [true, false])
+
+    const mistakes = within(await screen.findByRole('region', { name: 'Quiz de errores' }))
+    expect(await mistakes.findByText('Tienes 1 pregunta por repasar.')).toBeInTheDocument()
+    await startMistakesQuiz(app, 1)
+    expect(shownQuestion()).toBe(second)
+    await takeQuiz(app, [second], [true])
+
+    expect(await screen.findByRole('region', { name: 'Practicar' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Quiz de errores' })).not.toBeInTheDocument()
+  })
+
+  it('keeps a Mistake left unanswered', async () => {
+    const app = await tablet()
+    await openExam(app)
+    await practice(app, [false])
+
+    await startMistakesQuiz(app, 1)
+    await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+    expect(await screen.findByText('0 / 1')).toBeInTheDocument()
+    await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
+
+    const mistakes = within(await screen.findByRole('region', { name: 'Quiz de errores' }))
+    expect(mistakes.getByText('Tienes 1 pregunta por repasar.')).toBeInTheDocument()
   })
 
   it('takes as many Mistakes as she chose', async () => {
