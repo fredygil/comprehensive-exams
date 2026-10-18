@@ -2,9 +2,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { useServices } from '../../app/services'
+import { ModelCallError } from '../../components/ModelCallError'
+import { useModelCall } from '../../components/useModelCall'
 import { NeedsKeyNotice, useHasKey } from '../../components/NeedsKey'
 import { Section } from '../../components/Section'
-import { GatewayError, type GatewayErrorKind } from '../../gateway/errors'
 import { examTextOf, type Exam } from '../../store/store'
 import { strings } from '../../strings'
 import { InProgressQuizzes } from './InProgressQuizzes'
@@ -27,7 +28,7 @@ export function QuizSection({ exam }: { exam: Exam }) {
   // Left-out Materials rather than chosen ones, so Material added meanwhile is included.
   const [excluded, setExcluded] = useState<ReadonlySet<number>>(new Set())
   const [creating, setCreating] = useState(false)
-  const [failure, setFailure] = useState<GatewayErrorKind | null>(null)
+  const modelCall = useModelCall()
   const text = strings.quiz
 
   const hasReadPages = examText && examText.readPages > 0
@@ -45,17 +46,11 @@ export function QuizSection({ exam }: { exam: Exam }) {
   async function start(event: FormEvent) {
     event.preventDefault()
     setCreating(true)
-    setFailure(null)
-    try {
-      const materialIds = excluded.size ? chosen.materials.map(({ material }) => material.id) : undefined
-      const quizId = await quizMaker.createPracticeQuiz(exam.id, { count, materialIds })
-      if (quizId === null) setCreating(false)
-      else navigate(`/examenes/${exam.id}/quiz/${quizId}`)
-    } catch (error) {
-      if (!(error instanceof GatewayError)) throw error
-      setFailure(error.kind)
-      setCreating(false)
-    }
+    const materialIds = excluded.size ? chosen.materials.map(({ material }) => material.id) : undefined
+    // null: dropped, because the Exam was deleted or a backup restored meanwhile.
+    const quizId = await modelCall.run(() => quizMaker.createPracticeQuiz(exam.id, { count, materialIds }))
+    if (quizId == null) setCreating(false)
+    else navigate(`/examenes/${exam.id}/quiz/${quizId}`)
   }
 
   return (
@@ -98,11 +93,7 @@ export function QuizSection({ exam }: { exam: Exam }) {
               {text.creating}
             </p>
           )}
-          {failure && (
-            <p role="alert" className="error">
-              {strings.errors[failure]}
-            </p>
-          )}
+          <ModelCallError error={modelCall.error} />
           {hasReadPages && notIncluded > 0 && <p className="notice">{text.notIncluded(notIncluded)}</p>}
           {!hasReadPages && <p className="hint">{text.needsReadPages}</p>}
           {noneChosen && <p className="hint">{text.needsMaterial}</p>}

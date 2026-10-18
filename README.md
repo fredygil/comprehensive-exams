@@ -50,7 +50,7 @@ src/
   studyAids/             Study Aids: context.ts (StudyAidServices, studyAidContext), summary.ts (generateSummary), explainers.ts (suggestTopics, generateExplainer)
   settings/models.ts     AI jobs and their default models
   exams/calendar.ts      school year of a day, days until an Exam Date (local time)
-  components/            shared UI (Section, NeedsKey, RichText, ExamList, DeleteWithConfirmation + confirmations, ...)
+  components/            shared UI (Section, NeedsKey, RichText, ExamList, DeleteWithConfirmation + confirmations, useModelCall + ModelCallError for a model call's Spanish error, ...)
   screens/               one folder/file per screen (home, Period, exams/, material/, summary/, explainers/, quiz/, subjects/, settings/)
 tests/
   harness/               the app-level test harness (below)

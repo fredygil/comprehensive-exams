@@ -2,9 +2,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useServices } from '../../app/services'
+import { ModelCallError } from '../../components/ModelCallError'
+import { useModelCall } from '../../components/useModelCall'
 import { NeedsKeyNotice, useHasKey } from '../../components/NeedsKey'
 import { Section } from '../../components/Section'
-import { GatewayError } from '../../gateway/errors'
 import type { Exam } from '../../store/store'
 import { strings } from '../../strings'
 import { generateExplainer, suggestTopics } from '../../studyAids/explainers'
@@ -22,21 +23,17 @@ export function ExplainersSection({ exam }: { exam: Exam }) {
   const [topics, setTopics] = useState<string[] | null>(null)
   const [topic, setTopic] = useState('')
   const [pending, setPending] = useState<Pending>(null)
-  const [error, setError] = useState<string | null>(null)
+  const modelCall = useModelCall()
   const text = strings.explainers
   // Needs the key and at least one read Page (spec: availability rules).
   const ready = hasKey === true && (scope?.readPages ?? 0) > 0
   const busy = pending !== null
 
-  /** Runs a model call, showing a failure as its Spanish message; nothing is lost on failure. */
+  /** Runs a model call, saying what the section waits for meanwhile. */
   async function run(waitingFor: NonNullable<Pending>, call: () => Promise<void>) {
     setPending(waitingFor)
-    setError(null)
     try {
-      await call()
-    } catch (error) {
-      if (!(error instanceof GatewayError)) throw error
-      setError(strings.errors[error.kind])
+      await modelCall.run(call)
     } finally {
       setPending(null)
     }
@@ -104,11 +101,7 @@ export function ExplainersSection({ exam }: { exam: Exam }) {
               </button>
             </form>
             {pending?.kind === 'explainer' && <p role="status">{text.creating(pending.topic)}</p>}
-            {error && (
-              <p role="alert" className="error">
-                {error}
-              </p>
-            )}
+            <ModelCallError error={modelCall.error} />
           </>
         )}
       </div>
