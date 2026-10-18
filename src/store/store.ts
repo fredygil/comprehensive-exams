@@ -721,13 +721,6 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       return (await db.materials.get(id)) ?? null
     },
 
-    /** Has at least one of the Exam's Pages been read? (Quizzes and Study Aids need one.) */
-    async examHasReadPages(examId: number): Promise<boolean> {
-      const materialIds = await db.materials.where('examId').equals(examId).primaryKeys()
-      const pages = await db.pages.where('materialId').anyOf(materialIds).toArray()
-      return pages.some((page) => page.status === 'read')
-    },
-
     /** Renames a Material, e.g. to "Unidad 3 – Fracciones". */
     async renameMaterial(id: number, name: string) {
       await db.materials.update(id, { name: name.trim() })
