@@ -56,7 +56,7 @@ A study guide covering all of an Exam's Material, organized by topic; an Exam ha
 _Avoid_: Notes, recap, study guide
 
 **Outdated**:
-The state of a Summary whose Exam's Material has changed since it was made.
+The state of a Summary whose Exam's Material, or whose Subject's Language, has changed since it was made.
 _Avoid_: Stale, expired
 
 **Explainer**:
@@ -94,3 +94,9 @@ For each Question answered wrong, the Student's choice, the correct option, and 
 **Mistake**:
 A Question the Student answered wrong in a submitted Practice Quiz and has not since answered correctly in a Mistakes Quiz.
 _Avoid_: Error, wrong answer
+
+### Keeping her work
+
+**Backup**:
+One file holding everything on a tablet (Subjects, Periods, Exams, Material with its original scans, Study Aids, quizzes and Settings) except the OpenRouter key; importing it replaces everything on a tablet ("Copia de seguridad" in the UI).
+_Avoid_: Export, dump, sync

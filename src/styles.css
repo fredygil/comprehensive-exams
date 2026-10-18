@@ -1,0 +1,480 @@
+/* Built for tablets: side by side in landscape, stacked in portrait. */
+:root {
+  --ink: #1d2733;
+  --muted: #5b6b7a;
+  --paper: #fdf8ec;
+  --card: #ffffff;
+  --brand: #1f5f8b;
+  --ok: #2e7d4f;
+  --error: #b3261e;
+  --notice: #fff4d6;
+  --radius: 12px;
+
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--brand);
+  color: white;
+}
+
+.app-header nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.app-header a {
+  color: white;
+  text-decoration: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+}
+
+.app-header a.active {
+  background: rgb(255 255 255 / 0.18);
+}
+
+.app-name {
+  font-weight: 600;
+}
+
+.screen {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.25rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.screen.narrow {
+  max-width: 480px;
+  padding-top: 15vh;
+}
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem 1.25rem;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
+.stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+label,
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  min-height: 48px; /* comfortable touch target */
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #c8d1da;
+}
+
+button {
+  background: var(--brand);
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+button[type='button'] {
+  background: white;
+  color: var(--brand);
+  border: 1px solid var(--brand);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.error {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.notice {
+  background: var(--notice);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+
+.notice p {
+  margin: 0 0 0.5rem;
+}
+
+[role='status'] p {
+  margin: 0.25rem 0;
+}
+
+.screen.narrow-form {
+  max-width: 640px;
+}
+
+/* A link that looks like the primary button (e.g. "Nuevo examen"). */
+a.button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  background: var(--brand);
+  color: white;
+  text-decoration: none;
+}
+
+button.danger {
+  background: var(--error);
+}
+
+button.danger-outline {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.confirm {
+  background: var(--card);
+  border: 2px solid var(--error);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+}
+
+.confirm h2 {
+  margin-top: 0;
+}
+
+.exam-list,
+.period-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.exam-list a,
+.period-list a {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  min-height: 48px;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.exam-subject {
+  font-weight: 600;
+}
+
+@media (orientation: landscape) and (min-width: 900px) {
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    align-items: start;
+  }
+}
+
+/* A screen that uses the tablet's full width (e.g. a Page beside its text). */
+.screen.wide {
+  max-width: 1400px;
+}
+
+.material-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.material-list a {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+/* A Material's reading progress ("12 / 30 páginas"), right of its link. */
+.material-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* "Agregar material": a button-looking label around a visually hidden file input. */
+.file-picker {
+  display: inline-flex;
+  width: fit-content;
+}
+
+.file-picker .button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  background: var(--brand);
+  color: white;
+  cursor: pointer;
+}
+
+.file-picker:focus-within .button {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.file-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+/* A Page's original and its Recognized Text: stacked in portrait... */
+.page-view {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.page-original {
+  margin: 0;
+}
+
+.page-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.page-text {
+  min-width: 0;
+}
+
+/* "Página anterior · Página 2 de 12 · Página siguiente" above the Page. */
+.page-nav {
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.page-nav p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.rich-text {
+  overflow-wrap: anywhere;
+}
+
+/* Correcting a Page's Recognized Text (Markdown with $..$ math). */
+.page-editor {
+  width: 100%;
+  min-height: 20rem;
+  box-sizing: border-box;
+  font-family: ui-monospace, monospace;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.rich-text .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.rich-text table {
+  border-collapse: collapse;
+}
+
+.rich-text th,
+.rich-text td {
+  border: 1px solid #c8d1da;
+  padding: 0.25rem 0.5rem;
+}
+
+/* ...and side by side in landscape. */
+@media (orientation: landscape) {
+  .page-view {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  .page-original {
+    position: sticky;
+    top: 1rem;
+  }
+}
+
+/* An Explainer's sources: numbered links, each on its own line. */
+.source-list {
+  margin: 0;
+  padding-left: 1.5rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.source-list a {
+  overflow-wrap: anywhere;
+}
+
+/* Practice Quiz: one Question per screen, options as large tap targets. */
+.options {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 56px;
+  padding: 0.5rem 1rem;
+  border: 2px solid #c8d1da;
+  border-radius: 8px;
+  background: var(--card);
+  cursor: pointer;
+}
+
+.option:has(input:checked) {
+  border-color: var(--brand);
+  background: #eaf2f8;
+}
+
+.option input {
+  min-height: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
+
+.option .rich-text p,
+.answer .rich-text p {
+  margin: 0;
+}
+
+.score {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.feedback-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 1rem;
+}
+
+.feedback {
+  display: grid;
+  gap: 0.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e3e8ed;
+}
+
+.feedback h3 {
+  margin: 0;
+}
+
+.answer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+}
+
+.answer .label {
+  font-weight: 600;
+}
+
+.answer.wrong .label {
+  color: var(--error);
+}
+
+.answer.right .label {
+  color: var(--ok);
+}
+
+/* The Practice Quiz's Material picker: one checkbox per Material. */
+.material-picker {
+  border: 1px solid var(--muted);
+  border-radius: var(--radius);
+  margin: 0;
+  padding: 0.5rem 1rem 0.75rem;
+}
+
+.material-picker label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+}
+
+.material-picker input {
+  min-height: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
