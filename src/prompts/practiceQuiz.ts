@@ -6,11 +6,16 @@ export type QuizSourceMaterial = { id: string; pages: string[] }
 /**
  * The Practice Quiz prompt: `count` four-option Questions drawn only from the
  * Materials' Recognized Text, each with its explanation (the Feedback) and
- * the Material it comes from. The JSON shape itself is the request's schema.
+ * the Material it comes from, avoiding the prompts of Questions already
+ * asked (`earlierPrompts`). The JSON shape itself is the request's schema.
  */
 export function practiceQuizPrompt(
   context: PromptContext,
-  { count, materials }: { count: number; materials: QuizSourceMaterial[] },
+  {
+    count,
+    materials,
+    earlierPrompts = [],
+  }: { count: number; materials: QuizSourceMaterial[]; earlierPrompts?: string[] },
 ): string {
   const language = languageName(context.language)
   return [
@@ -29,5 +34,15 @@ export function practiceQuizPrompt(
     ...materials.map(
       (material) => `<material id="${material.id}">\n${material.pages.join('\n\n')}\n</material>`,
     ),
+    ...(earlierPrompts.length
+      ? [
+          '',
+          'The student has already been asked the questions below. Ask about other things the notes cover, or the same idea in a clearly different way.',
+          'Only if the notes have nothing new left to ask may you repeat one of them.',
+          '<asked>',
+          ...earlierPrompts.map((prompt) => `- ${prompt.replace(/\s+/g, ' ')}`),
+          '</asked>',
+        ]
+      : []),
   ].join('\n')
 }
