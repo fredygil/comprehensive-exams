@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useServices } from '../app/services'
+import { GradeLevelSelect } from '../components/GradeLevelSelect'
 import { strings } from '../strings'
 
 export function FirstRunScreen() {
@@ -29,17 +30,5 @@ export function FirstRunScreen() {
         </button>
       </form>
     </main>
-  )
-}
-
-export function GradeLevelSelect(props: { value: number; onChange: (grade: number) => void }) {
-  return (
-    <select value={props.value} onChange={(e) => props.onChange(Number(e.target.value))}>
-      {strings.gradeLevels.map((grade) => (
-        <option key={grade} value={grade}>
-          {strings.gradeLevel(grade)}
-        </option>
-      ))}
-    </select>
   )
 }
