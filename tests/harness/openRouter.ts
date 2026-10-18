@@ -30,8 +30,73 @@ function failure(status: number, message: string, metadata?: Record<string, unkn
   return HttpResponse.json({ error: { code: status, message, ...(metadata && { metadata }) } }, { status })
 }
 
-/** Scripted responses, grouped by endpoint. Each returns an MSW handler. */
+/** A chat completion as OpenRouter returns it. */
+export function chatCompletion(content: string, choice: { finish_reason?: string } = {}) {
+  return {
+    id: 'gen-test-1',
+    object: 'chat.completion',
+    created: 1792300000,
+    model: 'test/model',
+    choices: [
+      {
+        index: 0,
+        finish_reason: choice.finish_reason ?? 'stop',
+        message: { role: 'assistant', content, refusal: null },
+      },
+    ],
+    usage: { prompt_tokens: 1200, completion_tokens: 300, total_tokens: 1500 },
+  }
+}
+
+type ChatBody = { messages?: { content?: unknown }[] }
+
+/** Is this chat completion a Page being read (it carries the Page's image or file)? */
+function isReadPage(body: ChatBody) {
+  return (body.messages ?? []).some(
+    (message) =>
+      Array.isArray(message.content) &&
+      message.content.some((part: { type?: string }) => part.type === 'image_url' || part.type === 'file'),
+  )
+}
+
+/**
+ * A handler for one kind of chat completion. Other chat completions fall
+ * through to the next handler, so tests can script page reading, quizzes and
+ * Explainers side by side.
+ */
+function chatHandler(
+  matches: (body: ChatBody) => boolean,
+  respond: (body: ChatBody) => Response | Promise<Response>,
+) {
+  return http.post(`${OPENROUTER}/chat/completions`, async ({ request }) => {
+    const body = (await request.clone().json()) as ChatBody
+    return matches(body) ? respond(body) : undefined
+  })
+}
+
+/** Scripted responses, grouped by endpoint or operation. Each returns an MSW handler. */
 export const openRouter = {
+  /** Page reading: chat completions that carry a Page's image or file. */
+  readPage: {
+    /** Every Page reads as this Markdown. */
+    text: (markdown: string) =>
+      chatHandler(isReadPage, () => HttpResponse.json(chatCompletion(markdown))),
+    /** Each Page in turn reads as the next Markdown in the list (the last one repeats). */
+    texts: (markdowns: string[]) => {
+      let next = 0
+      return chatHandler(isReadPage, () =>
+        HttpResponse.json(chatCompletion(markdowns[Math.min(next++, markdowns.length - 1)])),
+      )
+    },
+    status: (status: number, metadata?: Record<string, unknown>) =>
+      chatHandler(isReadPage, () => failure(status, `HTTP ${status}`, metadata)),
+    /** A 200 cut off by the token budget: finish_reason "length" and no text. */
+    cutOff: () =>
+      chatHandler(isReadPage, () => HttpResponse.json(chatCompletion('', { finish_reason: 'length' }))),
+    /** The network is down (fetch rejects). */
+    offline: () => chatHandler(isReadPage, () => HttpResponse.error()),
+  },
+
   key: {
     /** A working key. Pass a limit to fake a key with a spend cap. */
     valid: (limit: KeyLimit | null = null) =>

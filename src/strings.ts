@@ -142,6 +142,22 @@ export const strings = {
     },
   },
 
+  material: {
+    title: 'Material',
+    add: 'Agregar material',
+    addHint: 'Elige fotos de tu cuaderno (JPG o PNG). Puedes elegir varias a la vez.',
+    empty: 'Aún no hay material para este examen.',
+    unsupported: (fileName: string) =>
+      `No se pudo agregar «${fileName}»: solo se pueden agregar fotos JPG o PNG.`,
+    backToExam: (subject: string) => `Volver a ${subject}`,
+    page: {
+      /** The alt text of a Page's original scan: "Página 1: original". */
+      original: (number: number) => `Página ${number}: original`,
+      recognizedText: 'Texto reconocido',
+      reading: 'Leyendo la página…',
+    },
+  },
+
   /** Delete confirmations: they name everything that will be lost. */
   deletion: {
     willLose: 'Se borrará para siempre:',
@@ -159,8 +175,10 @@ export const strings = {
       item: (subject: string) => `La materia ${subject}`,
       noExams: 'No tiene exámenes.',
     },
-    /** One line per kind of data under an Exam, e.g. materials: (n) => `${n} materiales`. */
-    examParts: {} satisfies Record<ExamPartKind, (count: number) => string>,
+    /** One line per kind of data under an Exam. */
+    examParts: {
+      materials: (n: number) => (n === 1 ? '1 material' : `${n} materiales`),
+    } satisfies Record<ExamPartKind, (count: number) => string>,
   },
 
   needsKey: {

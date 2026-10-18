@@ -13,7 +13,7 @@ import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { App } from '../../src/app/App'
 import { createAppServices, type AppServices } from '../../src/app/services'
-import type { IsoDate, PeriodDraft, Student, SubjectDraft } from '../../src/store/store'
+import type { IsoDate, PeriodDraft, Store, Student, SubjectDraft } from '../../src/store/store'
 
 export type RenderAppOptions = {
   /**
@@ -29,7 +29,32 @@ export type RenderAppOptions = {
    * Exams that already exist, naming one of `subjects`; their Periods are
    * created as needed. E.g. `[{ subject: 'Matemáticas', period: { schoolYearStart: 2026, quarter: 1 } }]`.
    */
-  exams?: { subject: string; period: PeriodDraft; examDate?: IsoDate }[]
+  exams?: {
+    subject: string
+    period: PeriodDraft
+    examDate?: IsoDate
+    /** Material already added and read, in order. */
+    materials?: SeededMaterial[]
+  }[]
+}
+
+/**
+ * A photo Material whose Pages have all been read: one Recognized Text
+ * (Markdown) per Page, e.g. `{ name: 'Unidad 1', pages: ['# Fracciones ...'] }`.
+ */
+export type SeededMaterial = { name: string; pages: string[] }
+
+async function seedMaterial(store: Store, examId: number, material: SeededMaterial) {
+  const bytes = new TextEncoder().encode(`photo bytes of ${material.name}`)
+  const [materialId] = await store.addMaterials(examId, [
+    {
+      name: material.name,
+      sourceFileName: `${material.name}.jpg`,
+      pages: material.pages.map(() => ({ bytes, mime: 'image/jpeg' as const })),
+    },
+  ])
+  const pages = await store.materialPages(materialId)
+  for (const [i, page] of pages.entries()) await store.markPageRead(page.id, material.pages[i])
 }
 
 type RunningApp = { services: AppServices; unmount: () => void }
@@ -85,7 +110,12 @@ export async function renderApp(options: RenderAppOptions = {}) {
     for (const exam of options.exams ?? []) {
       const subjectId = subjectIds.get(exam.subject)
       if (subjectId === undefined) throw new Error(`renderApp: no Subject named ${exam.subject}`)
-      await store.createExam({ subjectId, period: exam.period, examDate: exam.examDate ?? null })
+      const examId = await store.createExam({
+        subjectId,
+        period: exam.period,
+        examDate: exam.examDate ?? null,
+      })
+      for (const material of exam.materials ?? []) await seedMaterial(store, examId, material)
     }
   })
 

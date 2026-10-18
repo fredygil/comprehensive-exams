@@ -4,6 +4,7 @@
 // Reads are plain async functions, so the UI can wrap them in
 // `useLiveQuery(() => store.getStudent())` and re-render when data changes.
 import Dexie, { type EntityTable, type Table } from 'dexie'
+import type { GatewayErrorKind } from '../gateway/errors'
 import { DEFAULT_MODELS, JOBS, type Job } from '../settings/models'
 
 export type GradeLevel = number
@@ -79,13 +80,58 @@ export class DuplicateExamError extends Error {
   }
 }
 
+/** One file added to an Exam; its Pages hold the scan and the Recognized Text. */
+export type Material = {
+  id: number
+  examId: number
+  /** Named after its file by default, e.g. "fracciones" for fracciones.jpg. */
+  name: string
+  sourceFileName: string
+  /** When it was added (ms since the epoch). */
+  addedAt: number
+}
+
+/** The kinds of file a Page's original can be. */
+export type PageMime = 'image/jpeg' | 'image/png'
+
+/** A Page's original scan: its bytes and their type. */
+export type PageOriginal = {
+  bytes: Uint8Array<ArrayBuffer>
+  mime: PageMime
+}
+
+/** Where a Page is in being read: unread → reading → read | failed. */
+export type PageStatus = 'unread' | 'reading' | 'read' | 'failed'
+
+/** A single scanned page within a Material (its original is read separately, see getPageOriginal). */
+export type Page = {
+  id: number
+  materialId: number
+  /** 0-based position in its Material. */
+  index: number
+  mime: PageMime
+  status: PageStatus
+  /** Markdown with LaTeX math; null until the Page has been read. */
+  recognizedText: string | null
+  editedByStudent: boolean
+  /** Why the last reading failed (status 'failed'), else null. */
+  failure: GatewayErrorKind | null
+}
+
+/** A Material to add: its name and its Pages' originals, in order. */
+export type MaterialDraft = {
+  name: string
+  sourceFileName: string
+  pages: PageOriginal[]
+}
+
 /**
  * The kinds of data stored under an Exam, which go when the Exam (or its
- * Subject) is deleted. Later tickets add theirs here ('materials',
- * 'summary', 'explainers', 'quizzes', ...), with a line in `examParts`
- * below and its text in `strings.deletion.examParts`.
+ * Subject) is deleted. Later tickets add theirs here ('summary',
+ * 'explainers', 'quizzes', ...), with a line in `examParts` below and its
+ * text in `strings.deletion.examParts`.
  */
-export type ExamPartKind = never
+export type ExamPartKind = 'materials'
 
 /** How much of one kind of data an Exam holds, e.g. { kind: 'materials', count: 3 }. */
 export type ExamPartCount = { kind: ExamPartKind; count: number }
@@ -95,6 +141,8 @@ export type ExamDeletion = { exam: Exam; parts: ExamPartCount[] }
 
 /** What deleting a Subject loses: the Subject and each of its Exams, newest Period first. */
 export type SubjectDeletion = { subject: Subject; exams: ExamDeletion[] }
+
+type PageOriginalRow = { pageId: number; bytes: ArrayBuffer; mime: PageMime }
 
 // Singleton records (one Student, one Settings) live in one table, keyed by id.
 type SingletonRow =
@@ -106,6 +154,11 @@ class Database extends Dexie {
   subjects!: EntityTable<Subject, 'id'>
   periods!: EntityTable<Period, 'id'>
   exams!: EntityTable<ExamRow, 'id'>
+  materials!: EntityTable<Material, 'id'>
+  pages!: EntityTable<Page, 'id'>
+  // Kept apart from `pages` so listing Pages never loads their scans.
+  // Bytes are stored as an ArrayBuffer: fake-indexeddb (tests) drops Blobs.
+  pageOriginals!: EntityTable<PageOriginalRow, 'pageId'>
 
   constructor(name: string) {
     super(name)
@@ -116,6 +169,9 @@ class Database extends Dexie {
       subjects: '++id',
       periods: '++id, &[schoolYearStart+quarter]',
       exams: '++id, &[subjectId+periodId], subjectId, periodId',
+      materials: '++id, examId',
+      pages: '++id, materialId, status',
+      pageOriginals: 'pageId',
     })
   }
 }
@@ -129,15 +185,29 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
   // the tables it touches (so deletes run in one transaction), counts what an
   // Exam holds for the confirmation, and deletes it for a set of Exams.
   //
-  //   { kind: 'materials', tables: [db.materials, db.pages],
-  //     count: (examId) => db.materials.where('examId').equals(examId).count(),
-  //     delete: async (examIds) => { ...pages first, then materials... } },
+  // Keep each `delete` flat: await Dexie calls directly, not another async
+  // helper. Inside a transaction Dexie only follows native `await` one async
+  // function deep; deeper, the transaction commits early (PrematureCommitError).
+  //
   const examParts: {
     kind: ExamPartKind
     tables: Table[]
     count: (examId: number) => Promise<number>
     delete: (examIds: number[]) => Promise<void>
-  }[] = []
+  }[] = [
+    {
+      kind: 'materials',
+      tables: [db.materials, db.pages, db.pageOriginals],
+      count: (examId) => db.materials.where('examId').equals(examId).count(),
+      delete: async (examIds) => {
+        const materialIds = await db.materials.where('examId').anyOf(examIds).primaryKeys()
+        const pageIds = await db.pages.where('materialId').anyOf(materialIds).primaryKeys()
+        await db.pageOriginals.bulkDelete(pageIds)
+        await db.pages.bulkDelete(pageIds)
+        await db.materials.bulkDelete(materialIds)
+      },
+    },
+  ]
   const examPartTables = () => examParts.flatMap((part) => part.tables)
 
   async function examDeletion(exam: Exam): Promise<ExamDeletion> {
@@ -173,6 +243,10 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
   async function getExam(id: number): Promise<Exam | null> {
     const row = await db.exams.get(id)
     return row ? (await withSubjectAndPeriod([row]))[0] : null
+  }
+
+  async function getPage(id: number): Promise<Page | null> {
+    return (await db.pages.get(id)) ?? null
   }
 
   /** Every Period, newest first. */
@@ -339,6 +413,98 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     async currentPeriodExams(): Promise<{ period: Period; exams: Exam[] } | null> {
       const period = await currentPeriod()
       return period ? { period, exams: await periodExams(period.id) } : null
+    },
+
+    /**
+     * Adds Materials to an Exam, in order, each with its Pages unread.
+     * Returns their ids. Reading them is the Reading Queue's job.
+     */
+    async addMaterials(examId: number, drafts: MaterialDraft[]): Promise<number[]> {
+      return db.transaction('rw', [db.materials, db.pages, db.pageOriginals], async () => {
+        const ids: number[] = []
+        for (const draft of drafts) {
+          const materialId = await db.materials.add({
+            examId,
+            name: draft.name.trim() || draft.sourceFileName,
+            sourceFileName: draft.sourceFileName,
+            addedAt: Date.now(),
+          })
+          for (const [index, original] of draft.pages.entries()) {
+            const pageId = await db.pages.add({
+              materialId,
+              index,
+              mime: original.mime,
+              status: 'unread',
+              recognizedText: null,
+              editedByStudent: false,
+              failure: null,
+            })
+            await db.pageOriginals.add({
+              pageId,
+              bytes: original.bytes.slice().buffer,
+              mime: original.mime,
+            })
+          }
+          ids.push(materialId)
+        }
+        return ids
+      })
+    },
+
+    /** An Exam's Materials, in the order they were added. */
+    async examMaterials(examId: number): Promise<Material[]> {
+      const materials = await db.materials.where('examId').equals(examId).toArray()
+      return materials.sort((a, b) => a.addedAt - b.addedAt || a.id - b.id)
+    },
+
+    /** The Material, or null if there is none with that id (e.g. it was deleted). */
+    async getMaterial(id: number): Promise<Material | null> {
+      return (await db.materials.get(id)) ?? null
+    },
+
+    /** A Material's Pages, in order. */
+    async materialPages(materialId: number): Promise<Page[]> {
+      const pages = await db.pages.where('materialId').equals(materialId).toArray()
+      return pages.sort((a, b) => a.index - b.index)
+    },
+
+    getPage,
+
+    /** A Page's original scan, or null if the Page is gone. */
+    async getPageOriginal(pageId: number): Promise<PageOriginal | null> {
+      const row = await db.pageOriginals.get(pageId)
+      // Normalize: values read back from fake-indexeddb come from another realm.
+      return row ? { bytes: new Uint8Array(row.bytes), mime: row.mime } : null
+    },
+
+    // Page reading (the Reading Queue). Each is a no-op if the Page is gone.
+
+    /** The next Page waiting to be read, oldest first; null when none is. */
+    async nextUnreadPage(): Promise<Page | null> {
+      return (await db.pages.where('status').equals('unread').first()) ?? null
+    },
+
+    async markPageReading(pageId: number) {
+      await db.pages.update(pageId, { status: 'reading', failure: null })
+    },
+
+    /** Stores what the reading model read on the Page. */
+    async markPageRead(pageId: number, recognizedText: string) {
+      await db.pages.update(pageId, { status: 'read', recognizedText, failure: null })
+    },
+
+    async markPageFailed(pageId: number, failure: GatewayErrorKind) {
+      await db.pages.update(pageId, { status: 'failed', failure })
+    },
+
+    /** Puts a Page back in line to be read. */
+    async markPageUnread(pageId: number) {
+      await db.pages.update(pageId, { status: 'unread', failure: null })
+    },
+
+    /** Pages left 'reading' when the app was closed go back to 'unread'. */
+    async requeueInterruptedPages() {
+      await db.pages.where('status').equals('reading').modify({ status: 'unread' })
     },
 
     async close() {

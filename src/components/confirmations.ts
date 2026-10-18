@@ -12,9 +12,7 @@ export type Confirmation = {
 
 /** "3 materiales". strings.deletion.examParts has a line for every ExamPartKind (`satisfies` checks it). */
 function partLine(part: ExamPartCount): string {
-  // Widened so this compiles while ExamPartKind is still `never` (no kinds yet).
-  const lines: Record<string, (count: number) => string> = strings.deletion.examParts
-  return lines[part.kind](part.count)
+  return strings.deletion.examParts[part.kind](part.count)
 }
 
 function examItem({ exam }: ExamDeletion) {

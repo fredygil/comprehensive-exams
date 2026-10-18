@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router'
 import { ExamScreen } from '../screens/exams/ExamScreen'
 import { NewExamScreen } from '../screens/exams/NewExamScreen'
+import { MaterialScreen } from '../screens/material/MaterialScreen'
 import { FirstRunScreen } from '../screens/FirstRunScreen'
 import { HomeScreen } from '../screens/HomeScreen'
 import { PeriodScreen } from '../screens/PeriodScreen'
@@ -18,6 +19,12 @@ export function App({ services }: { services: AppServices }) {
   useEffect(() => {
     void requestPersistentStorage()
   }, [])
+
+  // Read any Pages still unread, from this launch until the app closes.
+  useEffect(() => {
+    services.readingQueue.start()
+    return () => services.readingQueue.stop()
+  }, [services])
 
   return (
     <ServicesContext.Provider value={services}>
@@ -43,8 +50,9 @@ function Screens() {
         <Route path="materias" element={<SubjectsScreen />} />
         <Route path="examenes/nuevo" element={<NewExamScreen />} />
         <Route path="examenes/:examId" element={<ExamScreen />} />
+        <Route path="examenes/:examId/material/:materialId" element={<MaterialScreen />} />
         <Route path="periodos/:periodId" element={<PeriodScreen />} />
-        <Route path="ajustes"element={<SettingsScreen student={student} />} />
+        <Route path="ajustes" element={<SettingsScreen student={student} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
