@@ -150,11 +150,23 @@ export const strings = {
     unsupported: (fileName: string) =>
       `No se pudo agregar «${fileName}»: solo se pueden agregar fotos JPG o PNG.`,
     backToExam: (subject: string) => `Volver a ${subject}`,
+    /** Renaming and deleting one Material. */
+    manage: {
+      title: 'Este material',
+      name: 'Nombre',
+      rename: 'Cambiar nombre',
+    },
     page: {
       /** The alt text of a Page's original scan: "Página 1: original". */
       original: (number: number) => `Página ${number}: original`,
       recognizedText: 'Texto reconocido',
       reading: 'Leyendo la página…',
+      edit: 'Corregir texto',
+      /** The label of a Page's text editor: "Texto reconocido de la página 1". */
+      editor: (number: number) => `Texto reconocido de la página ${number}`,
+      save: 'Guardar texto',
+      cancel: 'Cancelar',
+      edited: 'Editado por ti.',
     },
   },
 
@@ -174,6 +186,12 @@ export const strings = {
       title: (subject: string) => `¿Eliminar la materia ${subject}?`,
       item: (subject: string) => `La materia ${subject}`,
       noExams: 'No tiene exámenes.',
+    },
+    material: {
+      action: 'Eliminar material',
+      title: '¿Eliminar este material?',
+      item: (name: string) => `El material «${name}»`,
+      pages: (n: number) => (n === 1 ? '1 página' : `${n} páginas`),
     },
     /** One line per kind of data under an Exam. */
     examParts: {

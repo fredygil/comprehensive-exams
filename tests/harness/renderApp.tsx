@@ -123,6 +123,14 @@ export async function renderApp(options: RenderAppOptions = {}) {
     user: userEvent.setup(),
     /** The fake `navigator.storage`, to check persistence was requested. */
     storage,
+    /**
+     * The running app's Store, for the few rules only its domain queries can
+     * show (e.g. an Exam's material revision). Read through it; never write.
+     */
+    get store(): Store {
+      if (!current) throw new Error('app is not open')
+      return current.services.store
+    },
     /** Close the app and open it again on the same tablet. */
     async reopen() {
       if (!current) throw new Error('app is not open')
