@@ -32,7 +32,7 @@ export function MaterialScreen() {
         <Link to={`/examenes/${exam.id}`}>{strings.material.backToExam(exam.subject.name)}</Link>
         <h1>{material.name}</h1>
       </header>
-      {page && <PageView page={page} />}
+      {page && <PageView key={page.id} page={page} />}
     </main>
   )
 }

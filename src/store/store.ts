@@ -477,6 +477,15 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
       return row ? { bytes: new Uint8Array(row.bytes), mime: row.mime } : null
     },
 
+    /**
+     * The Student's correction of a read Page's Recognized Text. From now on
+     * it is what every Study Aid and Practice Quiz uses, and reading never
+     * overwrites it.
+     */
+    async editRecognizedText(pageId: number, recognizedText: string) {
+      await db.pages.update(pageId, { recognizedText, editedByStudent: true })
+    },
+
     // Page reading (the Reading Queue). Each is a no-op if the Page is gone.
 
     /** The next Page waiting to be read, oldest first; null when none is. */

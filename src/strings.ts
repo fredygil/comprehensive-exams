@@ -155,6 +155,12 @@ export const strings = {
       original: (number: number) => `Página ${number}: original`,
       recognizedText: 'Texto reconocido',
       reading: 'Leyendo la página…',
+      edit: 'Corregir texto',
+      /** The label of a Page's text editor: "Texto reconocido de la página 1". */
+      editor: (number: number) => `Texto reconocido de la página ${number}`,
+      save: 'Guardar texto',
+      cancel: 'Cancelar',
+      edited: 'Editado por ti.',
     },
   },
 
