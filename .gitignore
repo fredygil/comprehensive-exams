@@ -29,3 +29,6 @@ dist-ssr
 
 # Claude Code (agent worktrees and local settings)
 .claude/
+
+# Vitest browser-mode failure screenshots
+.vitest

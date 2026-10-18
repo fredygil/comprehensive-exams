@@ -11,12 +11,16 @@
     "test:watch": "vitest",
     "lint": "oxlint",
     "preview": "vite preview",
-    "generate-pwa-assets": "pwa-assets-generator --preset minimal-2023 public/icon.svg"
+    "generate-pwa-assets": "pwa-assets-generator --preset minimal-2023 public/icon.svg",
+    "test:unit": "vitest run --project unit",
+    "test:browser": "vitest run --project browser"
   },
   "dependencies": {
     "dexie": "^4.4.6",
     "dexie-react-hooks": "^4.4.0",
     "katex": "^0.19.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
@@ -35,14 +39,17 @@
     "@types/react-dom": "^19.2.7",
     "@vite-pwa/assets-generator": "^2.0.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "@vitest/browser-playwright": "^5.0.5",
     "fake-indexeddb": "^6.2.6",
     "jsdom": "^29.1.1",
     "msw": "^3.0.3",
     "oxlint": "^1.81.0",
+    "playwright": "^1.64.1",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
     "vite-plugin-pwa": "^2.0.0",
     "vitest": "^5.0.5",
+    "vitest-browser-react": "^2.3.0",
     "workbox-window": "^7.4.1"
   },
   "overrides": {
