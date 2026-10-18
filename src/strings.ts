@@ -145,10 +145,13 @@ export const strings = {
   material: {
     title: 'Material',
     add: 'Agregar material',
-    addHint: 'Elige fotos de tu cuaderno (JPG o PNG). Puedes elegir varias a la vez.',
+    addHint:
+      'Elige los PDF que escaneaste con Drive o fotos de tu cuaderno (JPG o PNG). Puedes elegir varios a la vez.',
     empty: 'Aún no hay material para este examen.',
     unsupported: (fileName: string) =>
-      `No se pudo agregar «${fileName}»: solo se pueden agregar fotos JPG o PNG.`,
+      `No se pudo agregar «${fileName}»: solo se pueden agregar PDF o fotos JPG o PNG.`,
+    unreadablePdf: (fileName: string) =>
+      `No se pudo agregar «${fileName}»: el PDF está dañado o protegido.`,
     backToExam: (subject: string) => `Volver a ${subject}`,
     /** Renaming and deleting one Material. */
     manage: {
@@ -170,6 +173,12 @@ export const strings = {
       original: (number: number) => `Página ${number}: original`,
       recognizedText: 'Texto reconocido',
       reading: 'Leyendo la página…',
+      /** Where she is in a Material: "Página 2 de 12". */
+      position: (number: number, total: number) => `Página ${number} de ${total}`,
+      previous: 'Página anterior',
+      next: 'Página siguiente',
+      /** The Page Viewer couldn't draw a PDF Page. */
+      cannotShow: 'No se pudo mostrar esta página.',
       edit: 'Corregir texto',
       /** The label of a Page's text editor: "Texto reconocido de la página 1". */
       editor: (number: number) => `Texto reconocido de la página ${number}`,
