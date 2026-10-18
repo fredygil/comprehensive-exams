@@ -7,6 +7,7 @@ import { strings } from '../../strings'
 import { ExplainersSection } from '../explainers/ExplainersSection'
 import { MaterialSection } from '../material/MaterialSection'
 import { MistakesQuizSection } from '../quiz/MistakesQuizSection'
+import { QuizHistorySection } from '../quiz/QuizHistorySection'
 import { QuizSection } from '../quiz/QuizSection'
 import { SummarySection } from '../summary/SummarySection'
 import { ExamDateSection } from './ExamDateSection'
@@ -34,6 +35,8 @@ export function ExamScreen() {
       <ExplainersSection exam={exam} />
       <QuizSection exam={exam} />
       <MistakesQuizSection exam={exam} />
+      <QuizHistorySection exam={exam} />
+
       <div>
         <DeleteWithConfirmation
           action={strings.deletion.exam.action}

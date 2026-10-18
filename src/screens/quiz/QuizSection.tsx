@@ -7,6 +7,7 @@ import { Section } from '../../components/Section'
 import { GatewayError, type GatewayErrorKind } from '../../gateway/errors'
 import type { Exam, Material, Store } from '../../store/store'
 import { strings } from '../../strings'
+import { InProgressQuizzes } from './InProgressQuizzes'
 
 const COUNTS = Array.from({ length: 20 }, (_, i) => i + 1)
 const DEFAULT_COUNT = 10
@@ -72,6 +73,7 @@ export function QuizSection({ exam }: { exam: Exam }) {
     <Section title={text.section}>
       {materials !== undefined && hasKey !== undefined && (
         <div className="stack">
+          <InProgressQuizzes exam={exam} />
           {materials.length > 1 && (
             <fieldset className="material-picker">
               <legend>{text.materials}</legend>

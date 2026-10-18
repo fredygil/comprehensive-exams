@@ -275,6 +275,53 @@ export const strings = {
       pages === 1 ? '1 página aún no se incluye.' : `${pages} páginas aún no se incluyen.`,
   },
 
+  /** Practice Quizzes over time: In Progress ones to resume or discard, and the history of Submitted ones. */
+  quizzes: {
+    /** "18 de octubre de 2026, 9:05" */
+    when: (ms: number) =>
+      new Date(ms).toLocaleString('es', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }),
+    inProgress: {
+      list: 'Quizzes en curso',
+      started: (when: string) => `Empezado el ${when}`,
+      resume: 'Continuar',
+    },
+    discard: {
+      action: 'Descartar quiz',
+      title: '¿Descartar este quiz?',
+      item: (when: string) => `El quiz empezado el ${when}`,
+      confirm: 'Sí, descartar',
+    },
+    history: {
+      title: 'Historial',
+      list: 'Quizzes entregados',
+      empty: 'Aún no has entregado ningún quiz.',
+      questions: (n: number) => (n === 1 ? '1 pregunta' : `${n} preguntas`),
+    },
+    /** Every Question of a Submitted quiz, under its Score and Feedback. */
+    review: {
+      title: 'Todas las preguntas',
+      right: 'Bien',
+      wrong: 'Mal',
+    },
+    /** Asked before submitting with unanswered Questions. */
+    unanswered: {
+      title: '¿Entregar el quiz?',
+      message: (n: number) =>
+        `${n === 1 ? 'Te falta 1 pregunta' : `Te faltan ${n} preguntas`} por responder. ` +
+        'Las preguntas sin responder cuentan como incorrectas.',
+      submit: 'Sí, entregar',
+      keepAnswering: 'Seguir respondiendo',
+    },
+    /** "2 de 10 respondidas" */
+    answered: (n: number, total: number) => `${n} de ${total} respondidas`,
+  },
+
   /** Delete confirmations: they name everything that will be lost. */
   deletion: {
     willLose: 'Se borrará para siempre:',

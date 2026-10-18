@@ -126,6 +126,13 @@ async function startMistakesQuiz(app: App, count: number) {
   await screen.findByRole('heading', { name: `Pregunta 1 de ${count}` })
 }
 
+/** Taps "Entregar" with Questions left unanswered and confirms the warning. */
+async function submitUnanswered(app: App) {
+  await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+  const warning = within(await screen.findByRole('alertdialog', { name: '¿Entregar el quiz?' }))
+  await app.user.click(warning.getByRole('button', { name: 'Sí, entregar' }))
+}
+
 /** The number of the Question on screen ("Pregunta número 3" → 3). */
 function shownQuestion() {
   return Number(/Pregunta número (\d+)/.exec(screen.getByRole('region', { name: /^Pregunta \d+ de/ }).textContent!)![1])
@@ -151,7 +158,7 @@ describe('taking a Mistakes Quiz', () => {
     }
     expect([...asked].sort()).toEqual([2, 4, 5])
     await app.user.click(screen.getByRole('radio', { name: `Correcta ${asked[2]}` }))
-    await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+    await submitUnanswered(app)
 
     expect(await screen.findByRole('heading', { name: 'Resultado' })).toBeInTheDocument()
     expect(screen.getByText('1 / 3')).toBeInTheDocument()
@@ -185,7 +192,7 @@ describe('taking a Mistakes Quiz', () => {
     await practice(app, [false])
 
     await startMistakesQuiz(app, 1)
-    await app.user.click(screen.getByRole('button', { name: 'Entregar' }))
+    await submitUnanswered(app)
     expect(await screen.findByText('0 / 1')).toBeInTheDocument()
     await app.user.click(screen.getByRole('link', { name: 'Volver a Matemáticas' }))
 

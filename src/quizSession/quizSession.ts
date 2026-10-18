@@ -58,6 +58,22 @@ export function createQuizSession({ store }: { store: Store }) {
       await store.answerQuizQuestion(quizId, position, chosenIndex)
     },
 
+    /** Remembers the Question she is on, so the quiz resumes there. */
+    async goTo(quizId: number, position: number) {
+      await store.moveInQuiz(quizId, position)
+    },
+
+    /** Throws away an In Progress quiz, so she can start fresh. */
+    async discard(quizId: number) {
+      await store.discardQuiz(quizId)
+    },
+
+    /** How many of the quiz's Questions are still unanswered (0 if there is no such quiz). */
+    async unanswered(quizId: number): Promise<number> {
+      const found = await store.getQuiz(quizId)
+      return found ? found.quiz.items.filter((item) => item.chosenIndex === null).length : 0
+    },
+
     /** Scores the quiz, makes it Submitted and updates its Questions' Mistake status. Works offline. */
     async submit(quizId: number) {
       await store.submitQuiz(quizId, scoreOf, mistakesOf)

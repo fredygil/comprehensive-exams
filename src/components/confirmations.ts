@@ -4,6 +4,7 @@ import type {
   ExamPartCount,
   Explainer,
   MaterialDeletion,
+  PracticeQuiz,
   SubjectDeletion,
 } from '../store/store'
 import { strings } from '../strings'
@@ -59,4 +60,14 @@ export function subjectConfirmation({ subject, exams }: SubjectDeletion): Confir
 export function explainerConfirmation(explainer: Explainer): Confirmation {
   const text = strings.deletion.explainer
   return { title: text.title, losses: [text.item(explainer.topic)] }
+}
+
+/** The confirmation for discarding an In Progress quiz: the quiz, then how much of it she answered. */
+export function quizDiscardConfirmation(quiz: PracticeQuiz): Confirmation {
+  const text = strings.quizzes
+  const answered = quiz.items.filter((item) => item.chosenIndex !== null).length
+  return {
+    title: text.discard.title,
+    losses: [text.discard.item(text.when(quiz.createdAt)), text.answered(answered, quiz.items.length)],
+  }
 }

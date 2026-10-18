@@ -204,6 +204,8 @@ export type PracticeQuiz = {
   /** ms since the epoch. */
   createdAt: number
   submittedAt: number | null
+  /** The 0-based position of the Question she was on while In Progress, so she resumes there (missing: the first). */
+  currentPosition?: number
 }
 
 /** A Question's new Mistake status, decided when its quiz is submitted. */
@@ -841,6 +843,49 @@ export function createStore(dbName: string = DEFAULT_DB_NAME) {
     },
 
     getQuiz,
+
+    /** The Exam's In Progress quizzes, newest first. */
+    async inProgressQuizzes(examId: number): Promise<PracticeQuiz[]> {
+      const quizzes = await db.quizzes.where('examId').equals(examId).toArray()
+      return quizzes
+        .filter((quiz) => quiz.state === 'inProgress')
+        .sort((a, b) => b.createdAt - a.createdAt || b.id - a.id)
+    },
+
+    /** The Exam's Submitted quizzes, the most recently submitted first. */
+    async submittedQuizzes(examId: number): Promise<PracticeQuiz[]> {
+      const quizzes = await db.quizzes.where('examId').equals(examId).toArray()
+      return quizzes
+        .filter((quiz) => quiz.state === 'submitted')
+        .sort((a, b) => b.submittedAt! - a.submittedAt! || b.id - a.id)
+    },
+
+    /**
+     * Deletes an In Progress quiz, with its Questions that no other quiz
+     * lists (a Mistakes Quiz reuses Questions of Submitted quizzes, which stay).
+     * A Submitted quiz is never deleted on its own.
+     */
+    async discardQuiz(quizId: number) {
+      await db.transaction('rw', [db.quizzes, db.questions], async () => {
+        const quiz = await db.quizzes.get(quizId)
+        if (!quiz || quiz.state !== 'inProgress') return
+        const others = await db.quizzes.where('examId').equals(quiz.examId).toArray()
+        const kept = new Set(
+          others.filter((other) => other.id !== quizId).flatMap((other) => other.items.map((item) => item.questionId)),
+        )
+        await db.quizzes.delete(quizId)
+        await db.questions.bulkDelete(quiz.items.map((item) => item.questionId).filter((id) => !kept.has(id)))
+      })
+    },
+
+    /** Remembers which Question of an In Progress quiz she is on. */
+    async moveInQuiz(quizId: number, position: number) {
+      await db.transaction('rw', db.quizzes, async () => {
+        const quiz = await db.quizzes.get(quizId)
+        if (!quiz || quiz.state !== 'inProgress' || !quiz.items[position]) return
+        await db.quizzes.update(quizId, { currentPosition: position })
+      })
+    },
 
     /** Records (or changes) the answer to the quiz's Question at `position`, while it is In Progress. */
     async answerQuizQuestion(quizId: number, position: number, chosenIndex: number) {
