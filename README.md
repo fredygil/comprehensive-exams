@@ -9,7 +9,9 @@ Live at https://fredygil.github.io/comprehensive-exams/ (deployed from `main`).
 ```sh
 npm ci                 # install
 npm run dev            # dev server
-npm test               # all tests (Vitest, jsdom)
+npm test               # all tests: the app in jsdom + the Page Viewer in Chromium
+npm run test:unit      # only the app-level tests (jsdom)
+npm run test:browser   # only the browser-mode tests (needs `npx playwright install chromium` once)
 npm run test:watch
 npm run typecheck      # tsc -b over app, config and tests
 npm run build          # typecheck + production build into dist/
@@ -37,8 +39,8 @@ src/
     errors.ts            GatewayError kinds: NoKey, InvalidKey, NoCredit, Offline, RateLimited, Unavailable, BadResponse
     dataUrl.ts           bytes → data URL (image and file parts)
   prompts/               Prompt Builder: context.ts (Language, Grade Level, Markdown+math rules) + one file per prompt
-  pageSplitter/          Page Splitter: picked file → MaterialDraft (photos so far)
-  pageViewer/            Page Viewer: a Page's original (photos: <img>)
+  pageSplitter/          Page Splitter: picked file → MaterialDraft (a photo is one Page; a PDF is split with pdf-lib)
+  pageViewer/            Page Viewer: a Page's original (photos: <img>; PDF Pages: PDF.js canvas, PdfPage.tsx)
   readingQueue/          Reading Queue: reads unread Pages one at a time, records status in the Store
   settings/models.ts     AI jobs and their default models
   exams/calendar.ts      school year of a day, days until an Exam Date (local time)
@@ -47,6 +49,7 @@ src/
 tests/
   harness/               the app-level test harness (below)
   *.test.tsx             app-level tests, one file per feature
+  browser/               browser-mode tests (Chromium) of the Page Viewer, with fixtures/
 ```
 
 New modules from spec #1 (Page Splitter, Reading Queue, Quiz Maker, ...) get their own folder under `src/`. Screens reach them through `useServices()`; if a module needs the outside world, add it to `AppServices` in `src/app/services.tsx` so tests can swap it.
@@ -54,8 +57,9 @@ New modules from spec #1 (Page Splitter, Reading Queue, Quiz Maker, ...) get the
 ### Material and Pages
 
 - **Store**: a `Material` has `Page`s (status `unread → reading → read | failed`, `recognizedText`, `failure` = the GatewayErrorKind of the last failed read). A Page's original scan lives in its own table and is read with `getPageOriginal(pageId)` → `{ bytes: Uint8Array, mime }`, so listing Pages never loads scans. Bytes are stored as an `ArrayBuffer` (fake-indexeddb drops Blobs).
-- **Page Splitter** (`splitIntoPages(file)`, `materialFromFile(file)`): `ACCEPTED_TYPES` is also the picker's `accept`. A PDF branch goes there.
-- **Model Gateway**: chat-based operations build a request body and call `complete(job, request)`, which picks the job's model from Settings (`getModel`) and turns an unusable 200 into a GatewayError (`finish_reason` `length`/`content_filter` or empty → `BadResponse`; `error` → `Unavailable`). It returns `{ content, annotations }`.
+- **Page Splitter** (`splitIntoPages(file)`, `materialFromFile(file)`): `ACCEPTED_TYPES` is also the picker's `accept`. A PDF becomes one single-page PDF (`mime: 'application/pdf'`) per page, in order; pdf-lib is loaded on the first PDF. A PDF pdf-lib can't open throws `UnreadablePdfError`, a file of another type `UnsupportedFileError`; the Material section names the file and adds the rest of the pick.
+- **Page Viewer** (`<PageViewer original alt />`): draws a PDF Page with PDF.js on a canvas fitted to its column (`role="img"`, `data-state` loading/ready), or a photo as an `<img>`. PDF.js is lazy-loaded. The Material screen pages through a Material with "Página anterior" / "Página siguiente" ("Página 2 de 3").
+- **Model Gateway**: `readPage` sends a photo as an `image_url` part and a PDF Page as a `file` part with `plugins: [{ id: 'file-parser', pdf: { engine: 'native' } }]`. Chat-based operations build a request body and call `complete(job, request)`, which picks the job's model from Settings (`getModel`) and turns an unusable 200 into a GatewayError (`finish_reason` `length`/`content_filter` or empty → `BadResponse`; `error` → `Unavailable`). It returns `{ content, annotations }`.
 - **Prompt Builder**: every prompt takes a `PromptContext` (`{ language, gradeLevel }`); shared lines (`studentLine`, `MARKDOWN_WITH_MATH`) are in `src/prompts/context.ts`.
 - **Reading Queue**: `start()` (idempotent) reads every unread Page in order; `stop()` on app close. A failure marks the Page `failed` with its error kind; `NoKey` leaves it `unread` and stops. Pages left `reading` are requeued on the first start.
 - **RichText** (`src/components/RichText.tsx`) renders Markdown with `$`/`$$` math (KaTeX), and rewrites `\(..\)`/`\[..\]`. Use it for every model-written text.
@@ -94,7 +98,12 @@ it('shows the spend limit', async () => {
   - `storage`: the fake `navigator.storage` (`persist` / `persisted` are `vi.fn`s).
   - `options.student` / `options.openRouterKey` / `options.subjects` / `options.exams` are preconditions written through the Store's public API before launch. `exams[].materials: [{ name: 'Unidad 1', pages: ['# Fracciones ...'] }]` adds photo Material whose Pages are already read (one Recognized Text per Page), so no reading request is sent. Use them to skip setup that isn't what the test is about; drive the behaviour under test through the screens. Add more options here as later tickets need them (always via Store methods, never raw tables).
 - **MSW** (`tests/harness/openRouter.ts`): every test starts with `defaultHandlers` (a working key, no limit). Override per test with `server.use(openRouter.key.invalid())`, `.status(402)`, `.offline()` and so on. Unhandled requests fail the test, so add a scripted response to `openRouter` for each new endpoint or operation. Page reading is `openRouter.readPage.text(md)` / `.texts([md1, md2])` / `.status(401)` / `.cutOff()` / `.offline()`. Chat completions are told apart with `chatHandler(matches, respond)`: a handler only answers the requests it matches (e.g. readPage = has an image/file part) and lets others fall through, so add e.g. `openRouter.structured.*` the same way. `chatCompletion(content)` builds the response body.
-- **Files** (`tests/harness/files.ts`): `photo('unidad 1.jpg')` for `user.upload(screen.getByLabelText('Agregar material'), ...)`, and `dataUrlOf(type, bytes)` for the request check. `openRouterRequests` lists the requests sent in the current test, for the spec's one allowed request check (headers, Language and Grade Level in the prompt).
+- **Files** (`tests/harness/files.ts`): `photo('unidad 1.jpg')` and `await pdf('unidad 3.pdf', 3)` for `user.upload(screen.getByLabelText('Agregar material'), ...)`, and `dataUrlOf(type, bytes)` for the request check. Page n of a `pdf()` is told apart with `pdfPageNumber(bytes)`; `openRouter.readPage.as(({ mime, bytes }) => markdown)` answers each Page from the scan it was sent, e.g. `` `Texto de la página ${await pdfPageNumber(bytes)}.` ``.
+- **Page Viewer stand-in**: jsdom has no canvas, so `setup.ts` replaces `src/pageViewer/PageViewer` with `tests/harness/pageViewerStandIn.tsx` (every Page is an `<img>` named "Página N: original"). The real viewer is tested in `tests/browser/` (see below). `openRouterRequests` lists the requests sent in the current test, for the spec's one allowed request check (headers, Language and Grade Level in the prompt).
 - **Fake clock** (`tests/harness/clock.ts`): `setClock('2026-10-18T09:00')` freezes `Date` only; timers stay real, so `findBy*`/`waitFor`, user-event, MSW and Dexie work unchanged. Call it again to move time; it is reset after each test.
 - **Queries**: prefer roles and labels with the literal Spanish text. Each Settings card is a `region` named by its heading (`<Section title>`), so `within(screen.getByRole('region', { name: 'Modelos' }))` scopes a query to it.
 - `tests/harness/setup.ts` wires all of this up and resets it after every test.
+
+## Writing a browser-mode test
+
+The spec's secondary seam: the Page Viewer in real Chromium (Vitest browser mode, Playwright), because PDF.js needs a real canvas. Tests are `tests/browser/*.browser.test.tsx` (the `browser` project in `vitest.config.ts`; no jsdom setup, no MSW, no IndexedDB) and typecheck with `tsconfig.browser.json`, apart from the jsdom tests, because `vitest/browser` declares its own DOM matchers. Render with `await render(...)` from `vitest-browser-react`, find with `page.getByRole(...)` from `vitest/browser`, and wait with `await expect.element(locator)...` or `await expect.poll(...)`. Fixtures (`tests/browser/fixtures/`, neutral content only) are imported with `?url` and fetched.
