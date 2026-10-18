@@ -99,6 +99,7 @@ label,
 
 input,
 select,
+textarea,
 button {
   font: inherit;
   min-height: 48px; /* comfortable touch target */
@@ -253,6 +254,14 @@ button.danger-outline {
   font-weight: 600;
 }
 
+/* A Material's reading progress ("12 / 30 páginas"), right of its link. */
+.material-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 /* "Agregar material": a button-looking label around a visually hidden file input. */
 .file-picker {
   display: inline-flex;
@@ -317,6 +326,16 @@ button.danger-outline {
 
 .rich-text {
   overflow-wrap: anywhere;
+}
+
+/* Correcting a Page's Recognized Text (Markdown with $..$ math). */
+.page-editor {
+  width: 100%;
+  min-height: 20rem;
+  box-sizing: border-box;
+  font-family: ui-monospace, monospace;
+  line-height: 1.5;
+  resize: vertical;
 }
 
 .rich-text .katex-display {

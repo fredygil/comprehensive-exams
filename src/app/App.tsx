@@ -20,10 +20,17 @@ export function App({ services }: { services: AppServices }) {
     void requestPersistentStorage()
   }, [])
 
-  // Read any Pages still unread, from this launch until the app closes.
+  // Read any Pages still unread, from this launch until the app closes, and
+  // pick up again when the tablet comes back online.
   useEffect(() => {
-    services.readingQueue.start()
-    return () => services.readingQueue.stop()
+    const { readingQueue } = services
+    const resume = () => readingQueue.start()
+    readingQueue.start()
+    window.addEventListener('online', resume)
+    return () => {
+      window.removeEventListener('online', resume)
+      readingQueue.stop()
+    }
   }, [services])
 
   return (

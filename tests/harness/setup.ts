@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/vitest'
 import 'fake-indexeddb/auto'
 import { cleanup } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
-import { openRouterRequests, server } from './openRouter'
+import { openRouterRequests, releaseHangingRequests, server } from './openRouter'
 import { closeOpenApps } from './renderApp'
 
 // jsdom can't draw PDF Pages: the app gets a stand-in Page Viewer.
@@ -20,6 +20,7 @@ beforeEach(() => {
 afterEach(async () => {
   cleanup()
   await closeOpenApps()
+  releaseHangingRequests()
   server.resetHandlers()
   vi.useRealTimers()
   vi.unstubAllGlobals()

@@ -2,7 +2,9 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
 import { useServices } from '../../app/services'
+import { readingProgress } from '../../store/store'
 import { strings } from '../../strings'
+import { ManageMaterialSection } from './ManageMaterialSection'
 import { PageView } from './PageView'
 
 /** One Material, a Page at a time: its original next to its Recognized Text. */
@@ -33,6 +35,7 @@ export function MaterialScreen() {
       <header>
         <Link to={`/examenes/${exam.id}`}>{strings.material.backToExam(exam.subject.name)}</Link>
         <h1>{material.name}</h1>
+        <p className="hint">{strings.material.progress(readingProgress(pages))}</p>
       </header>
       {pages.length > 1 && (
         <div className="row page-nav">
@@ -51,6 +54,7 @@ export function MaterialScreen() {
       )}
       {/* key: a new Page starts its viewer afresh. */}
       {page && <PageView key={page.id} page={page} />}
+      <ManageMaterialSection material={material} />
     </main>
   )
 }
