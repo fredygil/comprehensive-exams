@@ -3,22 +3,27 @@
 // tests/harness/renderApp.tsx); main.tsx creates the real ones.
 import { createContext, useContext } from 'react'
 import { createModelGateway, type ModelGateway } from '../gateway/gateway'
+import { createReadingQueue, type ReadingQueue } from '../readingQueue/readingQueue'
 import { createStore, type Store } from '../store/store'
 import { APP_TITLE, APP_URL } from './config'
 
 export type AppServices = {
   store: Store
   gateway: ModelGateway
+  /** Reads unread Pages in the background; <App> starts it on launch. */
+  readingQueue: ReadingQueue
 }
 
 export function createAppServices(options: { dbName?: string } = {}): AppServices {
   const store = createStore(options.dbName)
   const gateway = createModelGateway({
     getKey: () => store.getOpenRouterKey(),
+    getModel: async (job) => (await store.getSettings()).models[job],
     appUrl: APP_URL,
     appTitle: APP_TITLE,
   })
-  return { store, gateway }
+  const readingQueue = createReadingQueue({ store, gateway })
+  return { store, gateway, readingQueue }
 }
 
 export const ServicesContext = createContext<AppServices | null>(null)

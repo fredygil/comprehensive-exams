@@ -4,6 +4,7 @@ import { useServices } from '../../app/services'
 import { examConfirmation } from '../../components/confirmations'
 import { DeleteWithConfirmation } from '../../components/DeleteWithConfirmation'
 import { strings } from '../../strings'
+import { MaterialSection } from '../material/MaterialSection'
 import { ExamDateSection } from './ExamDateSection'
 
 /** The study space for one Exam. Later tickets add Material, Study Aids and quizzes here. */
@@ -24,6 +25,7 @@ export function ExamScreen() {
         <p className="hint">{strings.periods.label(exam.period)}</p>
       </header>
       <ExamDateSection exam={exam} />
+      <MaterialSection exam={exam} />
       <div>
         <DeleteWithConfirmation
           action={strings.deletion.exam.action}

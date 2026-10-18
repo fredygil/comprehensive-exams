@@ -3,7 +3,12 @@
 // Every call reads the key from Settings at call time, sends the attribution
 // headers, and turns failures into GatewayError (see errors.ts). Planned
 // operations (spec #1): readPage, generateStructured, generateWithWebSearch,
-// checkKey. Add each one here, next to `send`.
+// checkKey. Add each one here: chat-based operations build their request
+// body and go through `complete`, which picks the job's model and checks the
+// answer.
+import type { Job } from '../settings/models'
+import type { PageOriginal } from '../store/store'
+import { toDataUrl } from './dataUrl'
 import { GatewayError, errorForResponse } from './errors'
 
 export const OPENROUTER_API = 'https://openrouter.ai/api/v1'
@@ -16,8 +21,46 @@ export type KeyCheck = {
   limitRemaining: number | null
 }
 
+/** A Page to read: its scan and the transcription prompt (from the Prompt Builder). */
+export type ReadPageRequest = {
+  prompt: string
+  original: PageOriginal
+}
+
+/** The assistant message of a chat completion that finished normally. */
+export type Completion = {
+  /** Never empty. */
+  content: string
+  /** message.annotations as sent (e.g. url_citation entries), or []. */
+  annotations: unknown[]
+}
+
+type ChatMessage = { role: 'user' | 'system'; content: string | ContentPart[] }
+
+type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+  | { type: 'file'; file: { filename: string; file_data: string } }
+
+/** A chat completion request, without `model` (chosen from the job). */
+type ChatRequest = {
+  messages: ChatMessage[]
+  reasoning?: { effort: 'none' | 'minimal' | 'low' | 'medium' | 'high' }
+  [option: string]: unknown
+}
+
+type ChatResponse = {
+  choices?: {
+    finish_reason?: string | null
+    error?: unknown
+    message?: { content?: unknown; refusal?: unknown; annotations?: unknown }
+  }[]
+}
+
 export type ModelGatewayOptions = {
   getKey: () => Promise<string | null>
+  /** The model Settings currently give a job. */
+  getModel: (job: Job) => Promise<string>
   /** Sent as HTTP-Referer. */
   appUrl: string
   /** Sent as X-OpenRouter-Title. */
@@ -54,7 +97,53 @@ export function createModelGateway(options: ModelGatewayOptions) {
     return body
   }
 
+  /**
+   * POST /chat/completions with the job's model. A 200 only counts when the
+   * model finished and said something: a mid-generation failure is
+   * Unavailable; a cut-off, refused or empty answer is BadResponse.
+   */
+  async function complete(job: Job, request: ChatRequest): Promise<Completion> {
+    const model = await options.getModel(job)
+    const body = (await send('/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model, ...request }),
+    })) as ChatResponse
+    const choice = body.choices?.[0]
+    if (!choice) throw new GatewayError('BadResponse', 'no choices')
+    if (choice.error || choice.finish_reason === 'error') {
+      throw new GatewayError('Unavailable', 'the provider failed mid-generation')
+    }
+    if (choice.finish_reason === 'length') throw new GatewayError('BadResponse', 'cut off (length)')
+    if (choice.finish_reason === 'content_filter' || choice.message?.refusal) {
+      throw new GatewayError('BadResponse', 'refused')
+    }
+    const content = choice.message?.content
+    if (typeof content !== 'string' || !content.trim()) {
+      throw new GatewayError('BadResponse', 'empty content')
+    }
+    const annotations = choice.message?.annotations
+    return { content, annotations: Array.isArray(annotations) ? annotations : [] }
+  }
+
   return {
+    /** Reads one Page with the vision model: its scan → Recognized Text (Markdown). */
+    async readPage({ prompt, original }: ReadPageRequest): Promise<string> {
+      const url = await toDataUrl(original.bytes, original.mime)
+      const { content } = await complete('readPages', {
+        reasoning: { effort: 'low' },
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url } },
+            ],
+          },
+        ],
+      })
+      return content.trim()
+    },
+
     /** Is the saved key accepted, and what is its spend limit? (GET /key) */
     async checkKey(): Promise<KeyCheck> {
       let body: unknown
