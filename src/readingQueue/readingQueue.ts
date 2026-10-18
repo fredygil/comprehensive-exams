@@ -11,17 +11,41 @@ import type { ModelGateway } from '../gateway/gateway'
 import { readPagePrompt } from '../prompts/readPage'
 import type { Page, Store } from '../store/store'
 
+/** How long to wait before each retry of a busy (RateLimited) or unavailable model. */
+export const RETRY_DELAYS_MS = [2_000, 5_000, 15_000]
+
+/** Busy or down for now: the same Page, sent again a little later, may well be read. */
+const RETRYABLE: ReadonlySet<GatewayErrorKind> = new Set(['RateLimited', 'Unavailable'])
+
 export type ReadingQueueOptions = {
   store: Store
   gateway: Pick<ModelGateway, 'readPage'>
+  /** Waits before a retry; tests make it instant. Defaults to setTimeout. */
+  wait?: (ms: number) => Promise<void>
 }
 
-export function createReadingQueue({ store, gateway }: ReadingQueueOptions) {
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+export function createReadingQueue({ store, gateway, wait = sleep }: ReadingQueueOptions) {
   let running: Promise<void> | null = null
   /** Set by start(): there may be new unread Pages. */
   let wanted = false
   let stopped = false
   let requeued = false
+
+  /** Asks the model, retrying with backoff while it is busy or down. */
+  async function readWithRetries(request: Parameters<ModelGateway['readPage']>[0]) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await gateway.readPage(request)
+      } catch (error) {
+        const delay = RETRY_DELAYS_MS[attempt]
+        const retryable = error instanceof GatewayError && RETRYABLE.has(error.kind)
+        if (!retryable || delay === undefined || stopped) throw error
+        await wait(delay)
+      }
+    }
+  }
 
   /** Reads one Page. Returns false when reading should stop (e.g. no key). */
   async function read(page: Page): Promise<boolean> {
@@ -37,7 +61,7 @@ export function createReadingQueue({ store, gateway }: ReadingQueueOptions) {
         language: exam.subject.language,
         gradeLevel: student.gradeLevel,
       })
-      const text = await gateway.readPage({ prompt, original })
+      const text = await readWithRetries({ prompt, original })
       await store.markPageRead(page.id, text)
       return true
     } catch (error) {

@@ -98,7 +98,8 @@ export async function renderApp(options: RenderAppOptions = {}) {
   async function launch(seed?: (services: AppServices) => Promise<void>) {
     // Launching from the home screen always starts at the start URL.
     window.history.replaceState(null, '', '/')
-    const services = createAppServices({ dbName })
+    // Retries of a busy model happen at once, so tests don't sit through the backoff.
+    const services = createAppServices({ dbName, wait: async () => {} })
     await seed?.(services)
     const { unmount } = render(<App services={services} />)
     current = { services, unmount }

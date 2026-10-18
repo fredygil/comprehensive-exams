@@ -98,3 +98,29 @@ describe('when one Page cannot be read', () => {
     expect(await screen.findByText('Texto de a.')).toBeInTheDocument()
   })
 })
+
+describe('when the model is busy or the service is down', () => {
+  it('tries the Page again before giving up on it', async () => {
+    server.use(openRouter.readPage.inTurn([429, 503, 'Texto después de esperar.']))
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [{ subject: 'Matemáticas', period: q1 }] })
+    await openExam(app)
+
+    await app.user.upload(screen.getByLabelText('Agregar material'), photo('a.jpg'))
+    await openMaterial(app, 'a')
+
+    expect(await screen.findByText('Texto después de esperar.')).toBeInTheDocument()
+  })
+
+  it('marks the Page failed when it stays busy', async () => {
+    server.use(openRouter.readPage.status(429))
+    const app = await renderApp({ student: ana, openRouterKey: 'sk-or-v1-good', subjects, exams: [{ subject: 'Matemáticas', period: q1 }] })
+    await openExam(app)
+
+    await app.user.upload(screen.getByLabelText('Agregar material'), photo('a.jpg'))
+    await openMaterial(app, 'a')
+
+    const text = within(screen.getByRole('region', { name: 'Texto reconocido' }))
+    expect(await text.findByRole('alert')).toHaveTextContent('El modelo está ocupado.')
+    expect(readRequests().length).toBeGreaterThan(1)
+  })
+})
